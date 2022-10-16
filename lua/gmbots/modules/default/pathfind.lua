@@ -1,7 +1,7 @@
 local PLAYER = FindMetaTable( "Player" )
 
 local function heuristic_cost_estimate( start, goal )
-	// Perhaps play with some calculations on which corner is closest/farthest or whatever
+	// Perhaps play with some calculations on which corner is closest/farthest || whatever
 	return start:GetCenter():Distance( goal:GetCenter() )
 end
 
@@ -44,7 +44,7 @@ local function Astar( start, goal, ply )
 	start:UpdateOnOpenList()
 
 	while ( !start:IsOpenListEmpty() ) do
-		local current = start:PopOpenList() // Remove the area with lowest cost in the open list and return it
+		local current = start:PopOpenList() // Remove the area with lowest cost in the open list && return it
 		if ( current == goal ) then
 			return reconstruct_path( cameFrom, current )
 		end
@@ -53,12 +53,12 @@ local function Astar( start, goal, ply )
 		for k, neighbor in pairs( current:GetAdjacentAreas() ) do
 			local newCostSoFar = current:GetCostSoFar() + heuristic_cost_estimate( current, neighbor )
 
-			if ( neighbor:IsUnderwater() or neighbor:IsBlocked(nil,false))
-			or ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar ) then // Add your own area filters or whatever here
+			if ( neighbor:IsUnderwater() || neighbor:IsBlocked(nil,false))
+			|| ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar ) then // Add your own area filters || whatever here
 				continue
 			end
 
-			if(GetConVar("gmbots_pf_skip_avoid"):GetInt() > 0 and neighbor:HasAttributes(NAV_MESH_AVOID)) then
+			if(GetConVar("gmbots_pf_skip_avoid"):GetInt() > 0 && neighbor:HasAttributes(NAV_MESH_AVOID)) then
 				print("avoiding")
 				continue
 			end
@@ -98,7 +98,7 @@ local function canTeleport(bot,pos)
 	local players = player.GetAll()
 	for i = 1,#players do
 		local ply = players[i]
-		if(cantTeleport or ply == bot or !ply or !ply:IsValid() or !ply:IsPlayer() or ply:IsGMBot()) then continue end
+		if(cantTeleport || ply == bot || !ply || !ply:IsValid() || !ply:IsPlayer() || ply:IsGMBot()) then continue end
 		for j = 1,2 do
 			local startPos = bot:EyePos()
 			if j == 2 then
@@ -109,7 +109,7 @@ local function canTeleport(bot,pos)
 				end
 			end
 
-			if ply:VisibleVec(startPos) or ply:VisibleVec(bot:EyePos()) or ply:VisibleVec(bot:GetPos()) then
+			if ply:VisibleVec(startPos) || ply:VisibleVec(bot:EyePos()) || ply:VisibleVec(bot:GetPos()) then
 				cantTeleport = true
 			end
 
@@ -123,23 +123,23 @@ local function canTeleport(bot,pos)
 				traceData.collisiongroup = COLLISION_GROUP_WORLD
 
 				local trace = util.TraceLine(traceData,bot)
-				if not trace.Hit then
+				if !trace.Hit then
 					cantTeleport = true
 				end
 			end
 		end
 	end
-	return not cantTeleport
+	return !cantTeleport
 end
 
 local rePathDelay = 0.5
 function PLAYER:Pathfind(pos,cheap)
 	local ply = self
-    local cmd = ply.GMBotsCMD or ply.cmd
+    local cmd = ply.GMBotsCMD || ply.cmd
 
 
 	// Only run this code on bots
-	if not ( cmd and ply and ply:IsValid() and ply:IsGMBot() ) then return end
+	if !( cmd && ply && ply:IsValid() && ply:IsGMBot() ) then return end
 
     if NUBZIGATE && self.Nubzigate then
         return self:Nubzigate(pos,cheap)
@@ -151,10 +151,10 @@ function PLAYER:Pathfind(pos,cheap)
 	local currentArea = navmesh.GetNearestNavArea( ply:GetPos() )
 
 	// internal variable to regenerate the path every X seconds to keep the pace with the target player
-	ply.lastRePath = ply.lastRePath or 0
+	ply.lastRePath = ply.lastRePath || 0
 
 	// internal variable to limit how often the path can be (re)generated
-	ply.lastRePath2 = ply.lastRePath2 or 0
+	ply.lastRePath2 = ply.lastRePath2 || 0
 	if ( ply.path && ply.lastRePath + rePathDelay < CurTime() && currentArea != ply.targetArea ) then
 		ply.path = nil
 		ply.lastRePath = CurTime()
@@ -162,7 +162,7 @@ function PLAYER:Pathfind(pos,cheap)
 
 	local targetPos = pos
 	local targetArea = navmesh.GetNearestNavArea( targetPos )
-	if targetArea == currentArea and targetPos:Distance(self:GetPos()) > 16 then
+	if targetArea == currentArea && targetPos:Distance(self:GetPos()) > 16 then
 		cmd:SetViewAngles( ( pos - ply:GetPos() ):GetNormalized():Angle() )
 		cmd:SetForwardMove( 1000 )
 		return
@@ -171,8 +171,8 @@ function PLAYER:Pathfind(pos,cheap)
 	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() ) then
 		ply.targetArea = nil
 		ply.path = Astar( currentArea, targetArea, self)
-		if ( !istable( ply.path ) ) then // We are in the same area as the target, or we can't navigate to the target
-			ply.path = nil // Clear the path, bail and try again next time
+		if ( !istable( ply.path ) ) then // We are in the same area as the target, || we can't navigate to the target
+			ply.path = nil // Clear the path, bail && try again next time
 			ply.lastRePath2 = CurTime()
 			return
 		end
@@ -183,7 +183,7 @@ function PLAYER:Pathfind(pos,cheap)
 		table.remove( ply.path ) // Just for this example, remove the starting area, we are already in it!
 	end
 
-	// We have no path, or its empty (we arrived at the goal), try to get a new path.
+	// We have no path, || its empty (we arrived at the goal), try to get a new path.
 	if ( !ply.path || #ply.path < 1 ) then
 		ply.path = nil
 		ply.targetArea = nil
@@ -197,7 +197,7 @@ function PLAYER:Pathfind(pos,cheap)
 		ply.targetArea = ply.path[ #ply.path ]
 	end
 
-	// The area we selected is invalid or we are already there, remove it, bail and wait for next cycle
+	// The area we selected is invalid || we are already there, remove it, bail && wait for next cycle
 	if ( !ply.targetArea || ( ply.targetArea:Distance( ply:GetPos() ) < 16) ) then
 		table.remove( ply.path ) // Removes last element
 		ply.targetArea = nil
@@ -205,10 +205,10 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 
-	self.lastStuckCheck = self.lastStuckCheck or CurTime()
+	self.lastStuckCheck = self.lastStuckCheck || CurTime()
 	if CurTime()-self.lastStuckCheck > 0.5 then
-		self.botStuckChecksPassed = self.botStuckChecksPassed or 0
-		self.lastUnstuckPos = self.lastUnstuckPos or Vector(0,0,0)
+		self.botStuckChecksPassed = self.botStuckChecksPassed || 0
+		self.lastUnstuckPos = self.lastUnstuckPos || Vector(0,0,0)
 
 		if self.botStuckChecksPassed > 10 then
 			self:BotDebug("I'm stuck!")
@@ -217,7 +217,7 @@ function PLAYER:Pathfind(pos,cheap)
 				self:BotDebug("Attempting to unstick...")
 				local locationType = math.ceil( GetConVar("gmbots_pf_teleportation_location"):GetInt() )
 				local endLocation = nil
-				if locationType == 0 and ply.targetArea then
+				if locationType == 0 && ply.targetArea then
 					self:BotDebug("Teleporting to target area of the current path")
 					endLocation = ply.targetArea
 				elseif currentArea then
@@ -246,11 +246,11 @@ function PLAYER:Pathfind(pos,cheap)
 	local targetPosArea = navmesh.GetNearestNavArea( ply.targetArea )
 
 	local heightDifference = ply.targetArea.Z - self:GetPos().Z
-	if (currentArea:HasAttributes(NAV_MESH_JUMP) or targetPosArea:HasAttributes(NAV_MESH_JUMP)) or (heightDifference > self:GetStepSize()) and (not currentArea:HasAttributes(NAV_MESH_NO_JUMP) and not currentArea:HasAttributes(NAV_MESH_STAIRS)) then
+	if (currentArea:HasAttributes(NAV_MESH_JUMP) || targetPosArea:HasAttributes(NAV_MESH_JUMP)) || (heightDifference > self:GetStepSize()) && (!currentArea:HasAttributes(NAV_MESH_NO_JUMP) && !currentArea:HasAttributes(NAV_MESH_STAIRS)) then
 		self:BotJump()
 	end
 
-	if currentArea:HasAttributes(NAV_MESH_CROUCH) or targetPosArea:HasAttributes(NAV_MESH_CROUCH) then
+	if currentArea:HasAttributes(NAV_MESH_CROUCH) || targetPosArea:HasAttributes(NAV_MESH_CROUCH) then
 		cmd:AddButtons(IN_DUCK)
 	end
 
@@ -258,7 +258,7 @@ function PLAYER:Pathfind(pos,cheap)
 		cmd:AddButtons(IN_RUN)
 	end
 
-	// We got the target to go to, aim there and MOVE
+	// We got the target to go to, aim there && MOVE
 	local targetang = ( ply.targetArea - ply:GetPos() ):GetNormalized():Angle()
 	cmd:SetViewAngles( targetang )
 	cmd:SetForwardMove( 1000 )
