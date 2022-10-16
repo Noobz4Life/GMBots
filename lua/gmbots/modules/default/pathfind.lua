@@ -5,12 +5,12 @@ local function heuristic_cost_estimate( start, goal )
 	return start:GetCenter():Distance( goal:GetCenter() )
 end
 
-local function convert_path(total_path)
+local function finalize_path(total_path)
 	local new_path = {}
 	for i = 1,#total_path do
 		local point = total_path[i]
 		if point then
-			new_path[i] = point:GetCenter()
+			new_path[#new_path + 1] = point:GetCenter()
 		end
 	end
 	return new_path
@@ -25,7 +25,7 @@ local function reconstruct_path( cameFrom, current )
 		current = cameFrom[ current ]
 		table.insert( total_path, navmesh.GetNavAreaByID( current ) )
 	end
-	return convert_path(total_path)
+	return finalize_path(total_path)
 end
 
 local function Astar( start, goal, ply )
@@ -42,6 +42,9 @@ local function Astar( start, goal, ply )
 
 	start:SetTotalCost( heuristic_cost_estimate( start, goal ) )
 	start:UpdateOnOpenList()
+
+	local closest_accessible = nil
+	local closest_accessible_distance = 0
 
 	while ( !start:IsOpenListEmpty() ) do
 		local current = start:PopOpenList() // Remove the area with lowest cost in the open list && return it
@@ -77,10 +80,16 @@ local function Astar( start, goal, ply )
 				neighbor:AddToOpenList()
 			end
 
+			local distance = neighbor:GetCenter():Distance(goal:GetCenter())
+			if(!closest_accessible || distance < closest_accessible_distance) then
+				closest_accessible = neighbor
+				closest_accessible_distance = distance
+			end
+
 			cameFrom[ neighbor:GetID() ] = current:GetID()
 		end
 	end
-
+	if(closest_accessible) then return Astar(start,closest_accessible,ply) end
 	return false
 end
 
