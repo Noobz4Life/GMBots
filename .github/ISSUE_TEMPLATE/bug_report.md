@@ -10,6 +10,10 @@ assignees: Noobz4Life
 **Describe the bug**
 A clear and concise description of what the bug is.
 
+**Error Message (if applicable)**
+```
+Replace this sentence with the error
+```
 **To Reproduce**
 Steps to reproduce the behavior:
 1. Go to '...'
