@@ -1,1 +1,0 @@
-CreateConVar("gmbots_pf_avoid_props",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"Should GMBots pathfinding try to go around props? This may be inaccurate.",0,1)
