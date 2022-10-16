@@ -28,6 +28,20 @@ local function reconstruct_path( cameFrom, current )
 	return finalize_path(total_path)
 end
 
+local function drawThePath( path, time )
+	if not GMBots:IsDebugMode() then return end
+	local prevArea
+	for _, area in pairs( path ) do
+		//debugoverlay.Sphere( area, 8, time or 9, color_white, true  )
+		if ( prevArea ) then
+			debugoverlay.Line( area, prevArea, time or 9, Color(1-(_ / #path) * 255,0,0), true )
+		end
+		prevArea = area
+
+		local navarea = navmesh.GetNearestNavArea(area)
+	end
+end
+
 local function Astar( start, goal, ply )
 	if ( !IsValid( start ) || !IsValid( goal ) ) then return false end
 	if ( start == goal ) then return true end
@@ -177,7 +191,7 @@ function PLAYER:Pathfind(pos,cheap)
 		return
 	end
 
-	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() && ply:OnGround() ) then
+	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() ) then
 		ply.targetArea = nil
 		ply.path = Astar( currentArea, targetArea, self)
 		if ( !istable( ply.path ) ) then // We are in the same area as the target, || we can't navigate to the target
@@ -190,6 +204,7 @@ function PLAYER:Pathfind(pos,cheap)
 		// TODO: Add inbetween points on area intersections
 		// TODO: On last area, move towards the target position, not center of the last area
 		table.remove( ply.path ) // Just for this example, remove the starting area, we are already in it!
+		drawThePath( ply.path, rePathDelay+0.05 )
 	end
 
 	// We have no path, || its empty (we arrived at the goal), try to get a new path.
@@ -207,7 +222,7 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	// The area we selected is invalid || we are already there, remove it, bail && wait for next cycle
-	if ( !ply.targetArea || ( ply.targetArea:Distance( ply:GetPos() ) < 16) ) then
+	if ( !ply.targetArea || (ply.targetArea:Distance( ply:GetPos() ) < 32) ) then
 		table.remove( ply.path ) // Removes last element
 		ply.targetArea = nil
 		return
@@ -221,7 +236,6 @@ function PLAYER:Pathfind(pos,cheap)
 
 		if self.botStuckChecksPassed > 10 then
 			self:BotDebug("I'm stuck!")
-			self:BotJump()
 			if(GetConVar("gmbots_pf_teleportation"):GetInt() > 0) then
 				self:BotDebug("Attempting to unstick...")
 				local locationType = math.ceil( GetConVar("gmbots_pf_teleportation_location"):GetInt() )
@@ -243,6 +257,9 @@ function PLAYER:Pathfind(pos,cheap)
 		end
 
 		if self:GetPos():Distance(self.lastUnstuckPos) < 32 then
+			if self.botStuckChecksPassed > 2 then
+				self:BotJump()
+			end
 			self.botStuckChecksPassed = self.botStuckChecksPassed + 1
 		else
 			self.lastUnstuckPos = self:GetPos()
@@ -252,18 +269,25 @@ function PLAYER:Pathfind(pos,cheap)
 		self.lastStuckCheck = CurTime()
 	end
 
+	local checkArea = currentArea
 	local targetPosArea = navmesh.GetNearestNavArea( ply.targetArea )
+	local targetAreaClose = (targetPosArea && targetPosArea:GetCenter():Distance(self:GetPos()) < 16)
+	if targetAreaClose then
+		checkArea = targetPosArea
+	end
+	checkArea:Draw()
+	local checkAreaPos = checkArea:GetCenter()
 
-	local heightDifference = ply.targetArea.Z - self:GetPos().Z
-	if ((currentArea:HasAttributes(NAV_MESH_JUMP) || targetPosArea:HasAttributes(NAV_MESH_JUMP)) || (heightDifference > self:GetStepSize())) && (!currentArea:HasAttributes(NAV_MESH_NO_JUMP) && !currentArea:HasAttributes(NAV_MESH_STAIRS)) then
+	local heightDifference = checkAreaPos.Z - self:GetPos().Z
+	if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
 		self:BotJump()
 	end
 
-	if currentArea:HasAttributes(NAV_MESH_CROUCH) || targetPosArea:HasAttributes(NAV_MESH_CROUCH) then
+	if checkArea:HasAttributes(NAV_MESH_CROUCH) then
 		cmd:AddButtons(IN_DUCK)
 	end
 
-	if currentArea:HasAttributes(NAV_MESH_RUN) then
+	if checkArea:HasAttributes(NAV_MESH_RUN) then
 		cmd:AddButtons(IN_RUN)
 	end
 
