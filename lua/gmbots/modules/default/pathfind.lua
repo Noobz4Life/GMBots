@@ -177,7 +177,7 @@ function PLAYER:Pathfind(pos,cheap)
 		return
 	end
 
-	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() ) then
+	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() && ply:OnGround() ) then
 		ply.targetArea = nil
 		ply.path = Astar( currentArea, targetArea, self)
 		if ( !istable( ply.path ) ) then // We are in the same area as the target, || we can't navigate to the target
