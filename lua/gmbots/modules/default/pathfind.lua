@@ -255,7 +255,7 @@ function PLAYER:Pathfind(pos,cheap)
 	local targetPosArea = navmesh.GetNearestNavArea( ply.targetArea )
 
 	local heightDifference = ply.targetArea.Z - self:GetPos().Z
-	if (currentArea:HasAttributes(NAV_MESH_JUMP) || targetPosArea:HasAttributes(NAV_MESH_JUMP)) || (heightDifference > self:GetStepSize()) && (!currentArea:HasAttributes(NAV_MESH_NO_JUMP) && !currentArea:HasAttributes(NAV_MESH_STAIRS)) then
+	if ((currentArea:HasAttributes(NAV_MESH_JUMP) or targetPosArea:HasAttributes(NAV_MESH_JUMP)) || (heightDifference > self:GetStepSize())) && (!currentArea:HasAttributes(NAV_MESH_NO_JUMP) && !currentArea:HasAttributes(NAV_MESH_STAIRS)) then
 		self:BotJump()
 	end
 
