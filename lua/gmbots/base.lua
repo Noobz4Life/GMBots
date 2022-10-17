@@ -10,7 +10,7 @@ hook.Add("GMBotsConnected","GMBots_BotConnected",function(ply) -- Runs when a bo
 	ply.Enemy = nil
 end)
 
-hook.Add("GMBotsStart","GMBots_RunStart",function(ply,cmd) -- Initialize the hook.
+hook.Add("GMBotsStart","GMBots_StartCommand",function(ply,cmd) -- Initialize the hook.
 	cmd:ClearButtons() -- Clear any buttons the bot is pressing, this is usually crouch.
 	cmd:ClearMovement() -- Clear any movement the bot is doing, this usually doesn't do anything but it's here just in case.
 
