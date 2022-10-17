@@ -185,7 +185,7 @@ function PLAYER:Pathfind(pos,cheap)
 
 	local targetPos = pos
 	local targetArea = navmesh.GetNearestNavArea( targetPos )
-	if targetArea == currentArea && targetPos:Distance(self:GetPos()) > 16 then
+	if ((targetArea == currentArea) or (targetPos:Distance(self:GetPos()) < 64 && targetArea:IsConnected(currentArea))) and targetPos:Distance(self:GetPos()) > 16 then
 		cmd:SetViewAngles( ( pos - ply:GetPos() ):GetNormalized():Angle() )
 		cmd:SetForwardMove( 1000 )
 		return
@@ -222,7 +222,7 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	// The area we selected is invalid || we are already there, remove it, bail && wait for next cycle
-	if ( !ply.targetArea || (ply.targetArea:Distance( ply:GetPos() ) < 32) ) then
+	if ( !ply.targetArea || (ply.targetArea:Distance( ply:GetPos() ) < 16) ) then
 		table.remove( ply.path ) // Removes last element
 		ply.targetArea = nil
 		return
@@ -270,16 +270,17 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	local checkArea = currentArea
-	local targetPosArea = navmesh.GetNearestNavArea( ply.targetArea )
-	local targetAreaClose = (targetPosArea && targetPosArea:GetCenter():Distance(self:GetPos()) < 16)
+	local currentTargetArea = navmesh.GetNearestNavArea( ply.targetArea ) or currentArea
+	local targetPosArea = currentTargetArea:GetCenter()
+	local targetAreaClose = (targetPosArea && targetPosArea:Distance(self:GetPos()) < 24)
 	if targetAreaClose then
-		checkArea = targetPosArea
+		checkArea = currentTargetArea
 	end
-	checkArea:Draw()
 	local checkAreaPos = checkArea:GetCenter()
 
-	local heightDifference = checkAreaPos.Z - self:GetPos().Z
+	local heightDifference = targetPosArea.Z - self:GetPos().Z
 	if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
+		print(heightDifference)
 		self:BotJump()
 	end
 
@@ -292,6 +293,7 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	// We got the target to go to, aim there && MOVE
+
 	local targetang = ( ply.targetArea - ply:GetPos() ):GetNormalized():Angle()
 	cmd:SetViewAngles( targetang )
 	cmd:SetForwardMove( 1000 )
