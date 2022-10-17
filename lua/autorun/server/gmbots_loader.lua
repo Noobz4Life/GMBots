@@ -53,7 +53,7 @@ function GMBots:MultiMsg(tbl,col)
 	self:MsgLine(col)
 	for i = 1,#tbl do
 		local msg = tbl[i]
-		if msg then MsgC( col or Color(255,0,0), "["..prefix.."] "..msg.."\n") end
+		if msg then MsgC( col or Color(255,0,0), "[GMBots] "..msg.."\n") end
 	end
 	self:MsgLine(col)
 end
