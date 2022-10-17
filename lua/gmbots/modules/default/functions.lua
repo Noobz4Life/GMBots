@@ -94,3 +94,29 @@ function PLAYER:BotAttackPlayer(enemy,mindist,maxdist,holdattack)
 
 	end
 end
+
+function PLAYER:BotVisible(target)
+	if self and target and IsValid(self) and IsValid(target) and self:Visible(target) then
+		local target_pos = Vector(0,0,0)
+		if target and target:IsValid() and isvector( target ) then
+			target_pos = target
+		else
+			target_pos = target:GetPos()
+		end
+		local eye_pos = self:EyePos()
+
+		local eyeToTarget = (target_pos - eye_pos):GetNormalized()
+		local degreeLimit = self:GetFOV() -- We use this incase this is a Player-Bot instead of a Real Bot.
+		local dotProduct = eyeToTarget:Dot(self:EyeAngles():Forward())
+		local aimDegree = math.deg(math.acos(dotProduct))
+		if (aimDegree >= degreeLimit) then
+			-- They're not on the player's screen, return false.
+			return false
+		else
+			-- They're on the player's screen, return true.
+			return true
+		end
+	end
+
+	return false
+end
