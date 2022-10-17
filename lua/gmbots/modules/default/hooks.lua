@@ -4,7 +4,7 @@ local lastpfDebugValue = 0
 GMBots.AutoCrouchJump = true
 
 function GMBots:AddInternalHook(eventName,func)
-	return hook.Add(eventName,"GMBots_"..eventName.."Default_DoNotOverwritePleaseTY",func)
+	return hook.Add(eventName,"__GMBots_"..eventName.."Default_DoNotOverwritePleaseTY",func)
 end
 
 local function pathfindDebug(ply,cmd)
