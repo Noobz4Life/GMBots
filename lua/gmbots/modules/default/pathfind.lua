@@ -171,7 +171,7 @@ function PLAYER:Pathfind(pos,cheap)
 	cmd:ClearButtons()
 	cmd:ClearMovement()
 
-	local currentArea = navmesh.GetNearestNavArea( ply:GetPos() )
+	local currentArea = navmesh.GetNavArea( ply:GetPos(), 100 ) || navmesh.GetNearestNavArea( ply:GetPos() )
 
 	// internal variable to regenerate the path every X seconds to keep the pace with the target player
 	ply.lastRePath = ply.lastRePath || 0
