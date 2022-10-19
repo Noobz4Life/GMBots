@@ -1,11 +1,9 @@
+local PLAYER = FindMetaTable( "Player" )
+
 local lastpfDebugTarget = 0
 local lastpfDebugValue = 0
 
 GMBots.AutoCrouchJump = true
-
-function GMBots:AddInternalHook(eventName,func)
-	return hook.Add(eventName,"__GMBots_"..eventName.."Default_DoNotOverwritePleaseTY",func)
-end
 
 local function pathfindDebug(ply,cmd)
 	local newvalue = GetConVar("gmbots_debug_pathfind"):GetInt()
@@ -60,10 +58,12 @@ end)
 
 GMBots:AddInternalHook("PlayerSpawn",function(ply,transition)
 	if(ply and ply:IsValid() and ply:IsPlayer() and ply:IsGMBot()) then
-		hook.Run("GMBotsSpawn",ply,transition)
+		ply.WanderSpot = nil
 		if GMBots.UseCollisionRules then
 			ply:SetCustomCollisionCheck( true )
 		end
+
+		hook.Run("GMBotsSpawn",ply,transition)
 	end
 end)
 

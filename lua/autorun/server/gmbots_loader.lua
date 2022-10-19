@@ -5,6 +5,10 @@ GMBots.BotPrefix = "BOT "
 
 include("gmbots/gmbots/sv_convars.lua")
 
+function GMBots:AddInternalHook(eventName,func)
+	return hook.Add(eventName,"__GMBots_"..eventName.."Default_DoNotOverwritePleaseTY",func)
+end
+
 function GMBots:GetBots()
 	local players = player.GetAll()
 	local bots = {}

@@ -14,12 +14,16 @@ hook.Add("GMBotsStart","GMBots_RunStart",function(ply,cmd) -- Initialize the hoo
 	cmd:ClearButtons() -- Clear any buttons the bot is pressing, this is usually crouch.
 	cmd:ClearMovement() -- Clear any movement the bot is doing, this usually doesn't do anything but it's here just in case.
 
-	if ply.Enemy and ply.Enemy:IsValid() and ply.Enemy:IsPlayer() and ply.Enemy:Alive() then -- Check if we have a enemy, and that the enemy is a player and is still alive..
-		-- PLAYER:AttackPlayer(enemy, closest_distance, maximum_distance, hold_down_attack)
-		ply:AttackPlayer(ply.Enemy,200,800,true) -- Attack the enemy, this will also pathfind for you if the enemy is out of sight.
-	else
-		ply.Enemy = ply:LookForPlayers() or nil -- Look for a new enemy.
-		ply:Wander() -- Wander around while waiting for a new enemy.
+	if ply:Team() == 1 then // Hiding
+		ply:BotWander()
+	elseif ply:Team() == 2 then // Seeking
+		if ply.Enemy and ply.Enemy:IsValid() and ply.Enemy:IsPlayer() and ply.Enemy:Alive() then -- Check if we have a enemy, and that the enemy is a player and is still alive..
+			-- PLAYER:AttackPlayer(enemy, closest_distance, maximum_distance, hold_down_attack)
+			ply:AttackPlayer(ply.Enemy,200,800,true) -- Attack the enemy, this will also pathfind for you if the enemy is out of sight.
+		else
+			//ply.Enemy = ply:LookForPlayers() or nil -- Look for a new enemy.
+			ply:BotWander() -- Wander around while waiting for a new enemy.
+		end
 	end
 end)
 

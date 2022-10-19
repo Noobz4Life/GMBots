@@ -1,6 +1,70 @@
 local PLAYER = FindMetaTable( "Player" )
 local CUSERCMD = FindMetaTable( "CUserCmd" )
 
+function GMBots:IsDoor(door)
+	if(door and IsValid(door)) then
+		local doorClass = door:GetClass()
+		if doorClass == "func_door" or doorClass == "func_door_rotating" or doorClass == "prop_door_rotating" then
+			return true
+		end
+	end
+	return false
+end
+
+function GMBots:IsDoorLocked( door )
+	return false
+end
+
+function GMBots:IsDoorOpened( door ) -- https://wiki.facepunch.com/gmod/Entity:GetInternalVariable yes i copied this from the gmod wiki because im lazy, leave me alone :(
+	if not (door and door:IsValid()) then return false end
+	local doorClass = door:GetClass()
+
+	if ( doorClass == "func_door" or doorClass == "func_door_rotating" ) then
+		return door:GetInternalVariable( "m_toggle_state" ) == 0
+	elseif ( doorClass == "prop_door_rotating" ) then
+		return door:GetInternalVariable( "m_eDoorState" ) == 2
+	end
+	return false
+end
+
+function GMBots:IsDoorOpening( door )
+	if not (door and door:IsValid()) then return false end
+	local doorClass = door:GetClass()
+
+	if ( doorClass == "func_door" or doorClass == "func_door_rotating" ) then
+		return door:GetInternalVariable( "m_toggle_state" ) == 0
+	elseif ( doorClass == "prop_door_rotating" ) then
+		return door:GetInternalVariable( "m_eDoorState" ) ~= 0 and door:GetInternalVariable( "m_eDoorState" ) ~= 1
+	end
+	return false
+end
+
+function GMBots:IsDoorOpen( door )
+	return self:IsDoorOpened(door) or self:IsDoorOpening(door)
+end
+
+function GMBots:GetHidingSpot()
+	if not self.NavHidingSpots then
+		local navareas = navmesh.GetAllNavAreas()
+		local navhiding = {}
+		if #navareas > 0 then
+			for i = 1,#navareas do
+				local areahiding = navareas[i]:GetHidingSpots()
+				if #areahiding > 0 then
+					for o = 1,#areahiding do
+						if not areahiding[o] then continue end
+						table.insert(navhiding,areahiding[o])
+					end
+				end
+			end
+		end
+		if #navhiding > 0 then
+			self.NavHidingSpots = navhiding
+		end
+	end
+	return self.NavHidingSpots[math.random(1,#self.NavHidingSpots)]
+end
+
 function CUSERCMD:AddButtons(...)
 	return self:SetButtons(bit.bor(self:GetButtons(),...))
 end
@@ -40,6 +104,26 @@ function PLAYER:BotLookAt(pos)
 		local ang = ( pos - self:GetPos() ):GetNormalized():Angle()
 		self:SetEyeAngles(ang)
 		self.GMBotsCMD:SetViewAngles( ang )
+	end
+end
+
+function PLAYER:BotWander()
+	self.WanderSpot = self.WanderSpot or GMBots:GetHidingSpot() or self:GetPos()
+	self.WanderTime = self.WanderTime or CurTime()+math.random(10,60)
+	local dist = self.WanderSpot:Distance(self:GetPos())
+	if dist > 20 then
+		self:Pathfind(self.WanderSpot,true)
+	else
+		self.WanderTime = self.WanderTime/1.01
+		if not self.WanderReached then
+			self:BotDebug("Reached wander spot.")
+			self.WanderReached = true
+		end
+	end
+	if CurTime() > self.WanderTime then
+		self.WanderTime = nil
+		self.WanderSpot = nil
+		self.WanderReached = false
 	end
 end
 

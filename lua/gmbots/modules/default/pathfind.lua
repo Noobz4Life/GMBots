@@ -1,4 +1,93 @@
 local PLAYER = FindMetaTable( "Player" )
+local CNAVAREA = FindMetaTable( "CNavArea" )
+GMBots.CustomBlockedNavAreas = GMBots.CustomBlockedNavAreas or {}
+CNAVAREA.InternalIsBlocked = CNAVAREA.InternalIsBlocked or CNAVAREA.IsBlocked
+
+function CNAVAREA:IsBlocked(...)
+	return GMBots.CustomBlockedNavAreas[self:GetID()] or self:InternalIsBlocked(...)
+end
+
+local blockWhitelist = {
+	"prop_physics",
+	"prop_physics_multiplayer",
+	"func_button",
+	"player"
+}
+
+function CNAVAREA:CheckBlocked()
+	--[[
+	-- Taken from https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/game/server/nav_area.cpp line 4843-4847
+	const float sizeX = MAX( 1, MIN( GetSizeX()/2 - 5, HalfHumanWidth ) );
+	const float sizeY = MAX( 1, MIN( GetSizeY()/2 - 5, HalfHumanWidth ) );
+	Extent bounds;
+	bounds.lo.Init( -sizeX, -sizeY, 0 );
+	bounds.hi.Init( sizeX, sizeY, VEC_DUCK_HULL_MAX.z - HalfHumanHeight );
+	]]
+
+	// -16.000000 -16.000000 0.000000
+	// 16.000000 16.000000 72.000000
+
+	local origin = self:GetCenter()
+	local mins = Vector(-16,-16,0)
+	local maxs = Vector(16,16,72/2)
+
+	local trace = {
+		start = origin,
+		endpos = origin,
+		mins = mins,
+		maxs = maxs,
+		filter = function(ent)
+			if table.HasValue(blockWhitelist,ent:GetClass()) then return false end
+			if GMBots:IsDoor(ent) and !GMBots:IsDoorLocked(ent) then return false end
+			return true
+		end,
+		mask = MASK_PLAYERSOLID,
+		//collisiongroup = COLLISION_GROUP_WORLD,
+		ignoreworld = true
+	}
+	local traceResult = util.TraceHull(trace)
+	if traceResult.StartSolid then
+		GMBots.CustomBlockedNavAreas[self:GetID()] = true
+		if GMBots:IsDebugMode() then debugoverlay.Box(origin,mins,maxs,1,Color(255,0,0)) end
+	else
+		GMBots.CustomBlockedNavAreas[self:GetID()] = nil
+		//debugoverlay.Box(origin,mins,maxs,2,Color(0,255,0))
+	end
+	return GMBots.CustomBlockedNavAreas[self:GetID()]
+end
+
+function GMBots:UpdateNavBlocked()
+	for a,b in pairs(navmesh.GetAllNavAreas()) do
+		b:CheckBlocked()
+	end
+end
+GMBots:UpdateNavBlocked()
+
+local function updateEntNavArea(ent)
+	if ent and IsValid(ent) then
+		local navarea = navmesh.GetNavArea( ent:GetPos(), 100 ) or navmesh.GetNearestNavArea( ent:GetPos() )
+		print("test")
+		if navarea then navarea:CheckBlocked() end
+	end
+end
+
+GMBots:AddInternalHook("EntityKeyValue",updateEntNavArea)
+GMBots:AddInternalHook("KeyPress",function(ply,key)
+	print(key,IN_USE)
+	if ply and ply:IsValid() and key == IN_USE then
+		local navarea = navmesh.GetNavArea( ply:GetPos(), 100 ) or navmesh.GetNearestNavArea( ply:GetPos() )
+		if navarea then
+			navarea:CheckBlocked()
+
+			local neighbors = navarea:GetAdjacentAreas()
+			for i = 1,#neighbors do
+				local neighbor = neighbors[i]
+				if neighbor then neighbor:CheckBlocked() end
+			end
+		end
+	end
+end)
+GMBots:AddInternalHook("PostCleanupMap",function() GMBots:UpdateNavBlocked() end)
 
 local function heuristic_cost_estimate( start, goal )
 	// Perhaps play with some calculations on which corner is closest/farthest || whatever
@@ -42,6 +131,12 @@ local function drawThePath( path, time )
 	end
 end
 
+local function isPathBlocked(area,neighbor)
+	area = area or neighbor
+	neighbor = neighbor or area
+	return false
+end
+
 local function Astar( start, goal, ply )
 	if ( !IsValid( start ) || !IsValid( goal ) ) then return false end
 	if ( start == goal ) then return true end
@@ -71,7 +166,8 @@ local function Astar( start, goal, ply )
 			local newCostSoFar = current:GetCostSoFar() + heuristic_cost_estimate( current, neighbor )
 
 			if ( neighbor:IsUnderwater() || neighbor:IsBlocked(nil,false))
-			|| ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar ) then // Add your own area filters || whatever here
+			|| ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar )
+			|| ( isPathBlocked(current,neighbor)) then // Add your own area filters || whatever here
 				continue
 			end
 
@@ -160,7 +256,6 @@ function PLAYER:Pathfind(pos,cheap)
 	local ply = self
     local cmd = ply.GMBotsCMD || ply.cmd
 
-
 	// Only run this code on bots
 	if !( cmd && ply && ply:IsValid() && ply:IsGMBot() ) then return end
 
@@ -170,6 +265,7 @@ function PLAYER:Pathfind(pos,cheap)
 
 	cmd:ClearButtons()
 	cmd:ClearMovement()
+	if GMBots:IsDebugMode() then debugoverlay.Sphere(pos,10,0.1,Color(255,255,0),true) end
 
 	local currentArea = navmesh.GetNavArea( ply:GetPos(), 100 ) || navmesh.GetNearestNavArea( ply:GetPos() )
 
@@ -183,9 +279,9 @@ function PLAYER:Pathfind(pos,cheap)
 		ply.lastRePath = CurTime()
 	end
 
-	local targetPos = pos
-	local targetArea = navmesh.GetNearestNavArea( targetPos )
-	if ((targetArea == currentArea) or (targetPos:Distance(self:GetPos()) < 64 && targetArea:IsConnected(currentArea))) and targetPos:Distance(self:GetPos()) > 16 then
+	local targetPos = pos or self:GetPos()
+	local targetArea = navmesh.GetNavArea( targetPos, 100 ) or navmesh.GetNearestNavArea( targetPos )
+	if ((targetArea == currentArea) or (targetPos:Distance(self:GetPos()) < 64 && (!targetArea or targetArea:IsConnected(currentArea or targetArea)))) and targetPos:Distance(self:GetPos()) > 16 then
 		cmd:SetViewAngles( ( pos - ply:GetPos() ):GetNormalized():Angle() )
 		cmd:SetForwardMove( 1000 )
 		return
@@ -255,15 +351,18 @@ function PLAYER:Pathfind(pos,cheap)
 				end
 			end
 		end
-
-		if self:GetPos():Distance(self.lastUnstuckPos) < 32 then
+		local selfPosNoZ = self:GetPos()
+		local lastPosNoZ = self.lastUnstuckPos
+		selfPosNoZ = Vector(selfPosNoZ.X,selfPosNoZ.Y,0)
+		lastPosNoZ = Vector(lastPosNoZ.X,lastPosNoZ.Y,0)
+		if selfPosNoZ:Distance(lastPosNoZ) < 32 then
 			if self.botStuckChecksPassed > 2 then
 				self:BotJump()
 			end
 			self.botStuckChecksPassed = self.botStuckChecksPassed + 1
 		else
 			self.lastUnstuckPos = self:GetPos()
-			self.botStuckChecksPassed = 0
+			self.botStuckChecksPassed = math.max(self.botStuckChecksPassed - 2,0)
 		end
 
 		self.lastStuckCheck = CurTime()
@@ -280,7 +379,6 @@ function PLAYER:Pathfind(pos,cheap)
 
 	local heightDifference = targetPosArea.Z - self:GetPos().Z
 	if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
-		print(heightDifference)
 		self:BotJump()
 	end
 
@@ -292,11 +390,25 @@ function PLAYER:Pathfind(pos,cheap)
 		cmd:AddButtons(IN_RUN)
 	end
 
+	if self:GetMoveType() == MOVETYPE_LADDER then
+		self:BotJump()
+	end
+
 	// We got the target to go to, aim there && MOVE
 
 	local targetang = ( ply.targetArea - ply:GetPos() ):GetNormalized():Angle()
 	cmd:SetViewAngles( targetang )
 	cmd:SetForwardMove( 1000 )
+	self:SetEyeAngles(targetang)
+
+	local eyetrace = self:GetEyeTrace()
+	if (eyetrace && IsValid(eyetrace.Entity) && !GMBots:IsDoorOpen(eyetrace.Entity) && !GMBots:IsDoorLocked(eyetrace.Entity) && !IsValid(eyetrace.Entity:GetInternalVariable("m_hActivator"))) then
+		cmd:SetButtons(IN_USE)
+		if eyetrace.Entity:GetPos():Distance(self:GetPos()) < 128 then
+			eyetrace.Entity:Use(self)
+			eyetrace.Entity:SetSaveValue("m_hActivator",self)
+		end
+	end
 
 	if GMBots:IsDebugMode() then debugoverlay.Line(self:EyePos(),self:EyePos() + cmd:GetViewAngles():Forward()*100,0.1,Color(255,255,0)) end
 end

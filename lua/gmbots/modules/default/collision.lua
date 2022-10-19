@@ -7,17 +7,6 @@ CreateConVar("gmbots_collision_doors",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STR
 //CreateConVar("gmbots_collision_bots",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"Should bots collide with other bots? (This may be disabled by the current gamemode script)")
 CreateConVar("gmbots_collision_ignore","",FCVAR_ARCHIVE,"What entities should bots not collide with? (This may be disabled by the current gamemode script)\nSeperated by a comma")
 
-function isDoorOpen( door ) -- https://wiki.facepunch.com/gmod/Entity:GetInternalVariable yes i copied this from the gmod wiki because im lazy, leave me alone :(
-	local doorClass = door:GetClass()
-
-	if ( doorClass == "func_door" or doorClass == "func_door_rotating" ) then
-		return door:GetInternalVariable( "m_toggle_state" ) == 0
-	elseif ( doorClass == "prop_door_rotating" ) then
-		return door:GetInternalVariable( "m_eDoorState" ) ~= 0
-	end
-	return false
-end
-
 hook.Add( "ShouldCollide", "GMBots_SCDefault_CustomCollisions", function( ent1, ent2 )
 	if GetConVar("gmbots_collision"):GetInt() > 0 then
 		local ply = nil
@@ -27,8 +16,7 @@ hook.Add( "ShouldCollide", "GMBots_SCDefault_CustomCollisions", function( ent1, 
 		if ply:IsPlayer() and ply:IsGMBot() and ent and ent:IsValid() then
 			local colRules = hook.Run("GMBotsCollide",ply,ent)
 			if colRules ~= nil then return colRules end
-
-			if GetConVar("gmbots_collision_doors"):GetInt() <= 0 and isDoorOpen(ent) then
+			if GetConVar("gmbots_collision_doors"):GetInt() < 1 and GMBots:IsDoorOpen(ent) then
 				return false
 			end
 
