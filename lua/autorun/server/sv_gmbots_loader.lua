@@ -2,6 +2,9 @@
 GMBots = {}
 GMBots.GamemodeSupported = false
 GMBots.BotPrefix = "BOT "
+GMBots.BotList = {}
+GMBots.BotUsernames = {}
+GMBots.LastBotUsername = ""
 
 include("gmbots/gmbots/sv_convars.lua")
 
@@ -67,26 +70,35 @@ function GMBots:GenerateNavMesh()
 end
 
 function GMBots:GetDefaultName(nameList)
-	local defaultNames = nameList or {"Bob","Billy","Xander","Isaiah","Alex","Alyx","Vorty","Eli","Carl"}
+	local defaultNames = nameList or GMBots.BotUsernames or {"Bob","Billy","Xander","Isaiah","Alex","Alyx","Vorty","Eli","Carl"}
 
 	return defaultNames[math.random(1,#defaultNames)]
 end
 
 function GMBots:AddBot(name)
-	local bot = NULL
-
 	if not ( not game.SinglePlayer() and player.GetCount() < game.MaxPlayers() and GMBots.GamemodeSupported ) then
 		if not GMBots.GamemodeSupported then
-			GMBots:Msg("Can't create bot because this gamemode isn't supported, or GMBots hasn't loaded yet!")
+			GMBots:Msg("Can't create bot because GMBots isn't loaded! (either GMBots hasn't had time to load yet or this gamemode isn't supported)")
 		else
 			GMBots:Msg("Can't create bot!")
 		end
 	end
-	local botName = tostring(self.BotPrefix)..tostring( name or self:GetDefaultName() or "???" )
+	local botName = tostring( name or self:GetDefaultName() or "???" )
 
-	bot = player.CreateNextBot( botName )
-	bot.GMBot = true
-	bot.IsGMBot = function() return true end
+	local botNum = #self.BotList + 1
+
+	GMBots.LastBotUsername = botName
+
+	local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
+	if bot and bot:IsValid() then
+		bot.GMBot = true
+		bot.IsGMBot = function() return true end
+
+		hook.Run("GMBotsConnected",bot)
+		self:Msg("Bot added")
+	else
+		self:Err("Failed to create bot!")
+	end
 	return bot
 end
 

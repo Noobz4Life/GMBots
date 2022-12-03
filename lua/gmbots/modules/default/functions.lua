@@ -82,14 +82,37 @@ function PLAYER:BotJump()
 end
 
 function PLAYER:IsGMBot()
-	return self.GMBot
+	return self.GMBot or table.HasValue(GMBots.BotList,self)
 end
 
-function PLAYER:BotChat(text,teamOnly)
+local function botChat(self,text,teamOnly)
+	if(self and self:IsValid()) then
+		self:SetNWBool("__GMBots__GMBotIsTyping",false)
+		self.GMBotIsTyping = false
+
+		if !self.GMBot then return end
+		self:Say( tostring( text ), teamOnly )
+	end
+end
+
+function PLAYER:BotChat(text,teamOnly,typingTime)
 	if(self and self:IsValid() and self.GMBot) then
 		self.__GMBots_NextChat = self.__GMBots_NextChat or 1
-		if(CurTime() > self.__GMBots_NextChat) then
-			self:Say( tostring( text ), teamOnly )
+		if (CurTime() <= self.__GMBots_NextChat) then return end
+
+		self.GMBotIsTyping = true
+		self:SetNWBool("__GMBots__GMBotIsTyping",true)
+
+		if typingTime ~= nil and (typingTime == true or typingTime <= 0) then
+			botChat(self,text,teamOnly)
+		else
+			typingTime = typingTime or (string.len(text) * (math.random(8,10)/100))
+
+			self:BotDebug("Typing text in "..typingTime..": "..text)
+			timer.Create( "__GMBotsChatTimer____"..tostring(text), typingTime, 1, function()
+				if (CurTime() <= self.__GMBots_NextChat) then return end
+				botChat(self,text,teamOnly)
+			end)
 		end
 	end
 end

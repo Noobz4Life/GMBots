@@ -57,15 +57,22 @@ GMBots:AddInternalHook("PlayerDeath", function(victim,inflictor,attacker)
 end)
 
 GMBots:AddInternalHook("PlayerSpawn",function(ply,transition)
-	if(ply and ply:IsValid() and ply:IsPlayer() and ply:IsGMBot()) then
-		ply.WanderSpot = nil
-		if GMBots.UseCollisionRules then
-			ply:SetCustomCollisionCheck( true )
-		end
+	if(ply and ply:IsValid() and ply:IsPlayer()) then
+		if ply.GMBot == nil then ply.GMBot = false end
 
-		hook.Run("GMBotsSpawn",ply,transition)
+
+		if ply:IsGMBot() then
+			ply.WanderSpot = nil
+			if GMBots.UseCollisionRules then
+				ply:SetCustomCollisionCheck( true )
+			end
+
+			hook.Run("GMBotsSpawn",ply,transition)
+		end
 	end
 end)
+
+CreateConVar("gmbots_pause_while_typing",1,FCVAR_NEVER_AS_STRING,"Should bots disable their while typing?",0,1)
 
 GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 	if not (ply and ply:IsValid() and ply:IsGMBot()) then return end
@@ -76,9 +83,13 @@ GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 
 	if not ply:Alive() then
 		cmd:SetButtons(IN_ATTACK)
+		return
 	end
-
-	if not ply:Alive() then return end
+	if ply:IsTyping() and GetConVar("gmbots_pause_while_typing"):GetInt() > 0 then
+		cmd:ClearButtons()
+		cmd:ClearMovement()
+		return
+	end
 
 	ply.GMBotsCMD = cmd
 	ply.BotDontJump = false

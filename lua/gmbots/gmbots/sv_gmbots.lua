@@ -25,6 +25,7 @@ end
 
 function GMBots:GetDefaultName()
 	local names = {
+		// Team Fortress 2s Bot Names
 		"A Professional With Standards",
 		"AimBot",
 		"AmNot",
@@ -110,7 +111,48 @@ function GMBots:GetDefaultName()
 		"Ze Ubermensch",
 		"Zepheniah Mann",
 		"0xDEADBEEF",
-		"1000"
+		"1000",
+
+		// Half-Life based usernames
+		"Alyx",
+		"Vorty",
+		"Eli",
+		"Laszlo", //the finest mind of this generation!
+
+		// Mario-based usernames
+		"Yoshi",
+		"Mario",
+		"Luigi",
+		"Wario",
+		"Waluigi",
+		"Bowser",
+		"Bowser Jr.",
+		"Koopa",
+		"Dry Bones",
+
+		// Undertale/Deltarune based usernames
+		"Ralsei",
+		"Asriel",
+		"Kris",
+		"Toriel",
+		"Asgore",
+
+		// Pokemon names
+		"Gengar",
+		"Pikachu",
+		"Lugia",
+		"Charmander",
+		"Charizard",
+		"Bulbasaur",
+		"Eevee",
+		"Lucario",
+		"Tyranitar",
+
+		// Haha funny names
+		"Peter",
+		"Homer",
+		"AMOGUS",
+		"Sus"
 	}
 	return names[math.random(1,#names)]
 end

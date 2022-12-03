@@ -15,7 +15,7 @@ hook.Add("GMBotsStart","GMBots_RunStart",function(ply,cmd) -- Initialize the hoo
 
 	if ply.Enemy then
 		ply:Pathfind(ply.Enemy:GetPos(),false)
-		ply:SelectBestWeapon()
+		//ply:SelectBestWeapon()
 	end
 end)
 

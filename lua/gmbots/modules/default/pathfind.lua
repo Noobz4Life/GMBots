@@ -1,6 +1,8 @@
+include("gmbots/gmbots/sv_navmesh.lua")
+
 local PLAYER = FindMetaTable( "Player" )
 local CNAVAREA = FindMetaTable( "CNavArea" )
-GMBots.CustomBlockedNavAreas = GMBots.CustomBlockedNavAreas or {}
+GMBots.CustomBlockedNavAreas = {}
 CNAVAREA.InternalIsBlocked = CNAVAREA.InternalIsBlocked or CNAVAREA.IsBlocked
 
 function CNAVAREA:IsBlocked(...)
@@ -45,6 +47,7 @@ function CNAVAREA:CheckBlocked()
 		//collisiongroup = COLLISION_GROUP_WORLD,
 		ignoreworld = true
 	}
+	GMBots.CustomBlockedNavAreas = GMBots.CustomBlockedNavAreas or {}
 	local traceResult = util.TraceHull(trace)
 	if traceResult.StartSolid then
 		GMBots.CustomBlockedNavAreas[self:GetID()] = true
@@ -57,6 +60,7 @@ function CNAVAREA:CheckBlocked()
 end
 
 function GMBots:UpdateNavBlocked()
+	GMBots.CustomBlockedNavAreas = {}
 	for a,b in pairs(navmesh.GetAllNavAreas()) do
 		b:CheckBlocked()
 	end
@@ -66,16 +70,18 @@ GMBots:UpdateNavBlocked()
 local function updateEntNavArea(ent)
 	if ent and IsValid(ent) then
 		local navarea = navmesh.GetNavArea( ent:GetPos(), 100 ) or navmesh.GetNearestNavArea( ent:GetPos() )
-		print("test")
-		if navarea then navarea:CheckBlocked() end
+		timer.Simple( 0.1, function()
+			if navarea then navarea:CheckBlocked() end
+		end)
 	end
 end
 
-GMBots:AddInternalHook("EntityKeyValue",updateEntNavArea)
-GMBots:AddInternalHook("KeyPress",function(ply,key)
-	print(key,IN_USE)
-	if ply and ply:IsValid() and key == IN_USE then
-		local navarea = navmesh.GetNavArea( ply:GetPos(), 100 ) or navmesh.GetNearestNavArea( ply:GetPos() )
+local function updateNearNavAreas(pos)
+	if not pos then return end
+	if pos and IsEntity(pos) and pos:IsValid() then pos = pos:GetPos() end
+
+	local navarea = navmesh.GetNavArea( pos, 100 ) or navmesh.GetNearestNavArea( pos )
+	timer.Simple(0.1,function()
 		if navarea then
 			navarea:CheckBlocked()
 
@@ -85,9 +91,20 @@ GMBots:AddInternalHook("KeyPress",function(ply,key)
 				if neighbor then neighbor:CheckBlocked() end
 			end
 		end
+	end)
+end
+
+GMBots:AddInternalHook("EntityKeyValue",updateEntNavArea)
+GMBots:AddInternalHook("KeyPress",function(ply,key)
+	if ply and ply:IsValid() and key == IN_USE then
+		updateNearNavAreas(ply)
 	end
 end)
+GMBots:AddInternalHook("AcceptInput",updateEntNavArea)
+GMBots:AddInternalHook("EntityRemoved",updateEntNavArea)
+GMBots:AddInternalHook("EntityTakeDamage",updateNearNavAreas)
 GMBots:AddInternalHook("PostCleanupMap",function() GMBots:UpdateNavBlocked() end)
+GMBots:AddInternalHook("VariableEdited",updateEntNavArea)
 
 local function heuristic_cost_estimate( start, goal )
 	// Perhaps play with some calculations on which corner is closest/farthest || whatever
@@ -99,6 +116,14 @@ local function finalize_path(total_path)
 	for i = 1,#total_path do
 		local point = total_path[i]
 		if point then
+			local next_point = total_path[i - 1]
+			local last_point = total_path[i - 1]
+			if last_point then
+				//new_path[#new_path + 1] = last_point:GetClosestPointOnArea(  point:GetCenter() )
+			end
+			if next_point then
+				new_path[#new_path + 1] = (last_point or point):GetClosestPointOnArea(  next_point:GetCenter() )
+			end
 			new_path[#new_path + 1] = point:GetCenter()
 		end
 	end
@@ -123,7 +148,8 @@ local function drawThePath( path, time )
 	for _, area in pairs( path ) do
 		//debugoverlay.Sphere( area, 8, time or 9, color_white, true  )
 		if ( prevArea ) then
-			debugoverlay.Line( area, prevArea, time or 9, Color(1-(_ / #path) * 255,0,0), true )
+			debugoverlay.Line( area, prevArea, time, Color(1-(_ / #path) * 255,0,0), true )
+			debugoverlay.Sphere( area, 5, time, Color(1-(_ / #path) * 255,0,0), true )
 		end
 		prevArea = area
 
@@ -135,6 +161,99 @@ local function isPathBlocked(area,neighbor)
 	area = area or neighbor
 	neighbor = neighbor or area
 	return false
+end
+
+local pointEntitys = {
+    ["prop_physics"] = true,
+    ["prop_physics_multiplayer"] = true,
+    ["func_breakable"] = true,
+    ["func_physbox"] = true
+}
+
+local function getPlayerBounds(ply,margin)
+	local margin = margin or 0
+
+
+	local plyMins, plyMaxs = ply:GetHull()
+
+	local headMins, headMaxs = Vector(plyMins.X - margin, plyMins.Y - margin, plyMins.Z + plyMaxs.Z/2),Vector(plyMaxs.X + margin, plyMaxs.Y + margin, plyMaxs.Z)
+
+	local legsMins, legsMaxs = Vector(plyMins.X - margin, plyMins.Y - margin, plyMins.Z),Vector(plyMaxs.X + margin, plyMaxs.Y + margin, plyMins.Z + plyMaxs.Z/2)
+
+
+	return headMins,headMaxs,legsMins,legsMaxs
+end
+
+local headTrace = {}
+local function checkDuck(ply)
+	local cmd = ply.GMBotsCMD || ply.cmd
+
+	local margin = 4
+
+	local headMins, headMaxs, legsMins, legsMaxs = getPlayerBounds(ply,margin)
+    headTrace.start = ply:GetPos()
+    headTrace.endpos = headTrace.start
+    headTrace.mins =  headMins
+    headTrace.maxs = headMaxs
+    headTrace.filter = {ply}
+
+	local trace = util.TraceHull(headTrace)
+
+	local debugColor = Color(255,255,255,100)
+	if trace.Hit then
+		debugColor = Color(255,0,0,100)
+	end
+	debugoverlay.Box(headTrace.start,headTrace.mins,headTrace.maxs,0,debugColor)
+
+	local debugColor = Color(255,0,255,100)
+	if trace.Hit then
+		headTrace.mins = legsMins
+		headTrace.maxs = legsMaxs
+
+		trace = util.TraceHull(headTrace)
+		if not trace.Hit then
+			cmd:AddButtons(IN_DUCK)
+			debugColor = Color(255,255,0,100)
+		end
+		debugoverlay.Box(headTrace.start,headTrace.mins,headTrace.maxs,0,debugColor)
+		return trace.Hit
+	end
+end
+
+local function checkJump(ply)
+	local cmd = ply.GMBotsCMD || ply.cmd
+
+	local margin = 4
+
+	local headMins, headMaxs, legsMins, legsMaxs = getPlayerBounds(ply,margin)
+    headTrace.start = ply:GetPos()
+    headTrace.endpos = headTrace.start
+    headTrace.mins =  legsMins + Vector(0,0,ply:GetStepSize())
+    headTrace.maxs = legsMaxs
+    headTrace.filter = {ply}
+
+	local trace = util.TraceHull(headTrace)
+
+	local debugColor = Color(255,255,255,100)
+	if trace.Hit then
+		debugColor = Color(255,0,0,100)
+	end
+	debugoverlay.Box(headTrace.start,headTrace.mins,headTrace.maxs,0,debugColor)
+
+	local debugColor = Color(255,0,255,100)
+	if trace.Hit then
+		headTrace.mins = headMins + Vector(0,0,legsMaxs.Z/4)
+		headTrace.maxs = headMaxs + Vector(0,0,legsMaxs.Z/4)
+
+		trace = util.TraceHull(headTrace)
+		if not trace.Hit then
+			cmd:AddButtons(IN_JUMP)
+			print('jumpy')
+			debugColor = Color(255,255,0,100)
+		end
+		debugoverlay.Box(headTrace.start,headTrace.mins,headTrace.maxs,0,debugColor)
+		return trace.Hit
+	end
 end
 
 local function Astar( start, goal, ply )
@@ -172,9 +291,22 @@ local function Astar( start, goal, ply )
 			end
 
 			if(GetConVar("gmbots_pf_skip_avoid"):GetInt() > 0 && neighbor:HasAttributes(NAV_MESH_AVOID)) then
-				print("avoiding")
 				continue
 			end
+
+			--[[
+			if current and neighbor then
+				pathTrace.start = (neighbor:GetCenter() + Vector(0, 0, 36))
+				pathTrace.endpos = (current:GetCenter() + Vector(0, 0, 36))
+
+				local pathTr = util.TraceLine(pathTrace)
+
+				if pathTr.Hit then
+					print("ignoring "..tostring(current:GetID()))
+					continue
+				end
+			end
+			]]
 
 			neighbor:SetCostSoFar( newCostSoFar );
 			neighbor:SetTotalCost( newCostSoFar + heuristic_cost_estimate( neighbor, goal ) )
@@ -251,7 +383,6 @@ local function canTeleport(bot,pos)
 	return !cantTeleport
 end
 
-local rePathDelay = 0.5
 function PLAYER:Pathfind(pos,cheap)
 	local ply = self
     local cmd = ply.GMBotsCMD || ply.cmd
@@ -265,9 +396,10 @@ function PLAYER:Pathfind(pos,cheap)
 
 	cmd:ClearButtons()
 	cmd:ClearMovement()
-	if GMBots:IsDebugMode() then debugoverlay.Sphere(pos,10,0.1,Color(255,255,0),true) end
+	if GMBots:IsDebugMode() then debugoverlay.Sphere(pos,10,0,Color(255,255,0),true) end
 
 	local currentArea = navmesh.GetNavArea( ply:GetPos(), 100 ) || navmesh.GetNearestNavArea( ply:GetPos() )
+	local rePathDelay = math.Clamp(ply.rePathDelay || 0,0.25,2.5)
 
 	// internal variable to regenerate the path every X seconds to keep the pace with the target player
 	ply.lastRePath = ply.lastRePath || 0
@@ -288,6 +420,7 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() ) then
+		local startGenTime = SysTime()
 		ply.targetArea = nil
 		ply.path = Astar( currentArea, targetArea, self)
 		if ( !istable( ply.path ) ) then // We are in the same area as the target, || we can't navigate to the target
@@ -301,6 +434,14 @@ function PLAYER:Pathfind(pos,cheap)
 		// TODO: On last area, move towards the target position, not center of the last area
 		table.remove( ply.path ) // Just for this example, remove the starting area, we are already in it!
 		drawThePath( ply.path, rePathDelay+0.05 )
+		local endGenTime = SysTime()
+		local totalTime = endGenTime - startGenTime
+
+		if totalTime > 0.5 then
+			ply:BotDebug("Pathfinding took longer than expected! Took "..(totalTime * 1000).." ms")
+		end
+
+		ply.rePathDelay = 250 * totalTime
 	end
 
 	// We have no path, || its empty (we arrived at the goal), try to get a new path.
@@ -343,6 +484,7 @@ function PLAYER:Pathfind(pos,cheap)
 					self:BotDebug("Teleporting to the center of the current navarea")
 					endLocation = currentArea:GetCenter()
 				end
+				updateNearNavAreas(ply)
 				if canTeleport(ply,endLocation) then
 					ply:SetPos(endLocation)
 					self.botStuckChecksPassed = 0
@@ -410,5 +552,14 @@ function PLAYER:Pathfind(pos,cheap)
 		end
 	end
 
-	if GMBots:IsDebugMode() then debugoverlay.Line(self:EyePos(),self:EyePos() + cmd:GetViewAngles():Forward()*100,0.1,Color(255,255,0)) end
+	checkJump(ply)
+
+	//obstacle_avoidance()
+
+	if GMBots:IsDebugMode() then debugoverlay.Line(self:EyePos(),self:EyePos() + cmd:GetViewAngles():Forward()*100,0,Color(255,255,0)) end
 end
+
+GMBots.Pathfinder = {}
+GMBots.Pathfinder.Reconstruct_Path = reconstruct_path
+GMBots.Pathfinder.Finalize_Path = finalize_path
+GMBots.Pathfinder.Astar = Astar
