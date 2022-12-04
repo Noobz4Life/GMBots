@@ -24,10 +24,9 @@ function PLAYER:GetInfo(cvarName)
                     end
                     for j = 1,#splitPlayermodel do
                         local findStart = string.find(string.Trim(string.lower(username)),string.Trim(string.lower(splitPlayermodel[j])),nil,true)
-                        if #playermodel > 3 and findStart then
-                            nameMatchingPlayermodels[#nameMatchingPlayermodels + 1] = playermodel
-                            break
-                        end
+                        if not (#playermodel > 3 and findStart) then continue end
+                        nameMatchingPlayermodels[#nameMatchingPlayermodels + 1] = playermodel
+                        break
                     end
                 end
 
