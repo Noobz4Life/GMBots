@@ -6,7 +6,7 @@ function PLAYER:Pathfind()
 end
 
 function PLAYER:BotError(msg)
-	if self and self.Nick and self.GMBot then
+	if self and self.Nick and self:IsGMBot() then
 		ErrorNoHalt()
 		return MsgC(Color(255,0,0),"[ERROR, BOT "..self:Nick().."] "..msg.."\n")
 	end
@@ -188,7 +188,7 @@ end,nil,"Spawns a bot.",FCVAR_LUA_SERVER)
 concommand.Add("gmbots_kick_all", function( ply, cmd, args )
 	if isAllowedToRun(ply) then
 		for a,b in pairs(player.GetAll()) do
-			if b and b:IsValid() and b.GMBot then
+			if b and b:IsValid() and b:IsGMBot() and b:IsBot() then
 				b:Kick("Kicking all bots...")
 			end
 		end

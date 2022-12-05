@@ -8,12 +8,12 @@ CreateConVar("gmbots_collision_doors",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STR
 CreateConVar("gmbots_collision_ignore","",FCVAR_ARCHIVE,"What entities should bots not collide with? (This may be disabled by the current gamemode script)\nSeperated by a comma")
 
 hook.Add( "ShouldCollide", "GMBots_SCDefault_CustomCollisions", function( ent1, ent2 )
-	if GetConVar("gmbots_collision"):GetInt() > 0 then
+	if GetConVar("gmbots_collision"):GetInt() > 0 and (ent1 and  ent2 and ent1:IsValid() and ent2:IsValid() ) then
 		local ply = nil
 		local ent = nil
 		if ent1:IsPlayer() and ent1:IsGMBot() then ply = ent1; ent = ent2
 		elseif ent2:IsPlayer() and ent2:IsGMBot() then ply = ent2; ent = ent1 end
-		if ply:IsPlayer() and ply:IsGMBot() and ent and ent:IsValid() then
+		if ply and ply:IsValid() and ply:IsPlayer() and ply:IsGMBot() and ent and ent:IsValid() then
 			local colRules = hook.Run("GMBotsCollide",ply,ent)
 			if colRules ~= nil then return colRules end
 			if GetConVar("gmbots_collision_doors"):GetInt() < 1 and GMBots:IsDoorOpen(ent) then

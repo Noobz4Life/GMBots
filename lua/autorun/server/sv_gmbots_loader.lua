@@ -2,9 +2,10 @@
 GMBots = {}
 GMBots.GamemodeSupported = false
 GMBots.BotPrefix = "BOT "
-GMBots.BotList = {}
 GMBots.BotUsernames = {}
 GMBots.LastBotUsername = ""
+GMBots.AmountOfBots = 0
+GMBots.Spots = {}
 
 include("gmbots/gmbots/sv_convars.lua")
 
@@ -22,6 +23,15 @@ function GMBots:GetBots()
 		end
 	end
 	return bots
+end
+
+function GMBots:AddCommand(name,callback,helpText,flags)
+	return concommand.Add(name,function(ply,cmd,args,argStr)
+		if !SERVER then return end
+		if !(ply and ply:IsValid()) or (ply and ply:IsValid() and ply:IsSuperAdmin()) then
+			return callback(ply,cmd,args,argStr)
+		end
+	end,nil,helpText,flags or FCVAR_SERVER_CAN_EXECUTE)
 end
 
 function GMBots:Msg(msg,col)
@@ -65,8 +75,35 @@ function GMBots:MultiMsg(tbl,col)
 	self:MsgLine(col)
 end
 
+local spawnEntities = {
+	"info_player_deathmatch",
+	"info_player_combine",
+	"info_player_rebel",
+	"info_player_counterterrorist",
+	"info_player_terrorist",
+	"info_player_axis",
+	"info_player_allies",
+	"gmod_player_start",
+	"info_player_start",
+	"info_player_teamspawn"
+}
 function GMBots:GenerateNavMesh()
-	--GMBots:Msg("Generating a nav mesh...")
+	if navmesh.IsGenerating() then return end
+
+	GMBots:Msg("Generating a nav mesh...")
+	for _, spawnClass in pairs(spawnEntities) do
+		local spawns = ents.FindByClass( spawnClass )
+		for _, spawn in pairs(spawns) do
+			local traceData = {}
+			traceData.start = spawn:GetPos()
+			traceData.endpos = spawn:GetPos() - Vector(0,0,4096)
+			traceData.mask = MASK_PLAYERSOLID_BRUSHONLY
+
+			local trace = util.TraceLine(traceData)
+
+			navmesh.AddWalkableSeed( trace.HitPos, trace.HitNormal )
+		end
+	end
 end
 
 function GMBots:GetDefaultName(nameList)
@@ -85,8 +122,6 @@ function GMBots:AddBot(name)
 	end
 	local botName = tostring( name or self:GetDefaultName() or "???" )
 
-	local botNum = #self.BotList + 1
-
 	GMBots.LastBotUsername = botName
 
 	local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
@@ -94,8 +129,15 @@ function GMBots:AddBot(name)
 		bot.GMBot = true
 		bot.IsGMBot = function() return true end
 
+		bot.__GMBots = {}
+
 		hook.Run("GMBotsConnected",bot)
+		hook.Run("GMBotAdded",bot)
+		hook.Run("GMBotsAdded",bot)
+		hook.Run("GMBotsBotAdded",bot)
 		self:Msg("Bot added")
+
+		GMBots.AmountOfBots = GMBots.AmountOfBots+1
 	else
 		self:Err("Failed to create bot!")
 	end
@@ -219,7 +261,7 @@ if CLIENT then
 
 					local curvalue = GetConVar("gmbots_debug_pathfind"):GetInt()
 					for a,b in pairs(players) do
-						if not b:UserID() == curvalue then continue end
+						if b:UserID() ~= curvalue then continue end
 						pfdebug:SetValue(b:Nick())
 					end
 				end
@@ -290,7 +332,6 @@ if SERVER then
 				GMBots:Msg("Game is set to singleplayer! Please change to have a player count of 2 or more for GMBots to run.")
 				return
 			end
-			--[[
 			local navareas = navmesh.GetAllNavAreas()
 			if (navareas and #navareas < 0) or not navareas then
 				GMBots:Msg("There isn't a navmesh!")
@@ -298,7 +339,6 @@ if SERVER then
 					return GMBots:GenerateNavMesh()
 				end
 			end
-			]]
 			GMBots:Load()
 		end
 	end)

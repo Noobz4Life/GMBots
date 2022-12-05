@@ -24,7 +24,7 @@ function PLAYER:GetInfo(cvarName)
                     end
                     for j = 1,#splitPlayermodel do
                         local findStart = string.find(string.Trim(string.lower(username)),string.Trim(string.lower(splitPlayermodel[j])),nil,true)
-                        if not (#playermodel > 3 and findStart) then continue end
+                        if not (#playermodel > 5 and findStart) then continue end
                         nameMatchingPlayermodels[#nameMatchingPlayermodels + 1] = playermodel
                         break
                     end
@@ -45,6 +45,10 @@ function PLAYER:GetInfo(cvarName)
         if string.Trim(string.lower(cvarName)) == "cl_playercolor" then
             self.GMBotsPlayerColor = self.GMBotsPlayerColor or tostring(Vector(math.random(0,255)/255,math.random(0,255)/255,math.random(0,255)/255))
             return self.GMBotsPlayerColor
+        end
+
+        if string.Trim(string.lower(cvarName)) == "gmod_toolmode" then
+            return self:GetGMBotVar("ToolMode") or "weld"
         end
     end
     return self:RealGetInfo(cvarName)

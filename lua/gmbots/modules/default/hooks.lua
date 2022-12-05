@@ -60,7 +60,6 @@ GMBots:AddInternalHook("PlayerSpawn",function(ply,transition)
 	if(ply and ply:IsValid() and ply:IsPlayer()) then
 		if ply.GMBot == nil then ply.GMBot = false end
 
-
 		if ply:IsGMBot() then
 			ply.WanderSpot = nil
 			if GMBots.UseCollisionRules then
@@ -68,6 +67,8 @@ GMBots:AddInternalHook("PlayerSpawn",function(ply,transition)
 			end
 
 			hook.Run("GMBotsSpawn",ply,transition)
+		else
+			ply.__GMBots = nil // clear this so it doesn't take up memory
 		end
 	end
 end)
@@ -77,6 +78,10 @@ CreateConVar("gmbots_pause_while_typing",1,FCVAR_NEVER_AS_STRING,"Should bots di
 GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 	if not (ply and ply:IsValid() and ply:IsGMBot()) then return end
 
+	if ply:IsGMBot() and !ply:IsBot() then
+		ply:PrintMessage(4,"You are currently a bot. You can type 'gmbots_become_bot 0' in console to disable being a bot!")
+	end
+
 	if (player.GetCount() < 1) then
 		return
 	end
@@ -85,14 +90,19 @@ GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 		cmd:SetButtons(IN_ATTACK)
 		return
 	end
-	if ply:IsTyping() and GetConVar("gmbots_pause_while_typing"):GetInt() > 0 then
-		cmd:ClearButtons()
-		cmd:ClearMovement()
-		return
-	end
+
+	cmd:ClearButtons()
+	cmd:ClearMovement()
+
+	if cmd:GetImpulse() ~= 100 then cmd:SetImpulse(0) end
+
+	cmd:SetMouseX(0)
+	cmd:SetMouseY(0)
+
+	if ply:IsTyping() and GetConVar("gmbots_pause_while_typing"):GetInt() > 0 then return end
 
 	ply.GMBotsCMD = cmd
-	ply.BotDontJump = false
+	ply.GMBotDontJump = false
 
 	if ( GetConVar("gmbots_debug_pathfind"):GetInt() > 0 ) then return pathfindDebug(ply,cmd) end
 	lastpfDebugTarget = 0
@@ -101,7 +111,7 @@ GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 		hook.Run("GMBotsStart",ply,cmd)
 	end)
 
-	if GMBots.AutoCrouchJump and not ply:OnGround() then
+	if GMBots.AutoCrouchJump and not ply:OnGround() and ply:GetMoveType() ~= MOVETYPE_NOCLIP then
 		cmd:SetButtons(bit.bor(cmd:GetButtons(),IN_DUCK))
 	end
 

@@ -15,7 +15,7 @@ function GMBots:IsDoorLocked( door )
 	return false
 end
 
-function GMBots:IsDoorOpened( door ) -- https://wiki.facepunch.com/gmod/Entity:GetInternalVariable yes i copied this from the gmod wiki because im lazy, leave me alone :(
+function GMBots:IsDoorOpened( door ) // https://wiki.facepunch.com/gmod/Entity:GetInternalVariable yes i copied this from the gmod wiki because im lazy, leave me alone :(
 	if not (door and door:IsValid()) then return false end
 	local doorClass = door:GetClass()
 
@@ -43,6 +43,108 @@ function GMBots:IsDoorOpen( door )
 	return self:IsDoorOpened(door) or self:IsDoorOpening(door)
 end
 
+local function getNavHidingSpot()
+	local navAreas = navmesh.GetAllNavAreas()
+	if #navAreas > 0 then
+		local i = 0
+		local area = nil
+		while not area or #area:GetHidingSpots() <= 0 and i < 1000 do
+			i = i + 1
+			area = navAreas[math.random(1,#navAreas)]
+		end
+		if area and #area:GetHidingSpots() > 0 then
+			local spot = area:GetHidingSpots()[math.random(1,#area:GetHidingSpots())]
+			return spot or Vector()
+		end
+	end
+	return Vector()
+end
+GMBots.GetHidingSpot = getNavHidingSpot
+
+function GMBots:AddSpotType(name,addCommands)
+	GMBots.Spots = GMBots.Spots or {}
+	if not GMBots.Spots[name] then
+		GMBots.Spots[name] = {}
+
+		GMBots["Get"..name.."Spot"] = function(key)
+			if GMBots.Spots[name][key] then return GMBots.Spots[name][key] end
+			print(GMBots.Spots[name])
+			if #GMBots.Spots[name] <= 0 then
+				local navAreas = navmesh.GetAllNavAreas()
+				if #navAreas > 0 then
+					local i = 0
+					local backupArea = nil
+					while (not backupArea or #backupArea:GetHidingSpots() <= 0) and i < 1000 do
+						i = i + 1
+						backupArea = navAreas[math.random(1,#navAreas)]
+					end
+					local backupSpot = backupArea:GetHidingSpots()[math.random(1,#backupArea:GetHidingSpots())]
+					return backupSpot
+				end
+			end
+
+			return GMBots.Spots[name][key] or GMBots.Spots[name][math.random(1,#GMBots.Spots[name])] or table.Random(GMBots.Spots[name]) or Vector()
+		end
+
+		GMBots["Add"..name.."Spot"] = function(vector)
+			local spot = vector or Vector()
+			GMBots.Spots[name][#GMBots.Spots[name] + 1] = spot
+
+			GMBots["Save"..name.."Spots"]()
+
+			GMBots:Msg("Added "..name.." spot at "..tostring(vector))
+
+			return spot
+		end
+
+		local fileDir = "gmbots/spots/"..name.."/"..game.GetMap()..".json"
+		GMBots["Load"..name.."Spots"] = function()
+			local json = file.Read( fileDir, "DATA" )
+			if json then
+				local jsonSpots = util.JSONToTable(json)
+				local spots = {}
+
+				// Make sure the loaded json is sequential, otherwise stuff will break
+				for _,v in pairs(jsonSpots) do
+					if v then
+						spots[#spots + 1] = v
+					end
+				end
+
+				GMBots.Spots[name] = spots
+			end
+		end
+
+		GMBots["Save"..name.."Spots"] = function(prettyPrint)
+			file.Write( fileDir, util.TableToJSON( GMBots.Spots[name], prettyPrint ) )
+		end
+		GMBots["Load"..name.."Spots"]()
+
+		if addCommands or addCommands == nil then
+			self:AddCommand("gmbots_add_"..string.lower(name).."_spot",function(ply,cmd,args)
+				if not SERVER then return end
+				print(ply:IsSuperAdmin())
+				if not (ply and ply:IsValid()) or not (ply and ply:IsValid() and ply:IsSuperAdmin()) then return self:Msg("You're not an admin!") end
+
+				local pos = nil
+				if (ply and ply:IsValid()) and #args < 3 then
+					pos = ply:GetPos()
+				else
+					if #args > 3 then
+						pos = Vector(tonumber(args[1]) or 0,tonumber(args[2]) or 0,tonumber(args[3]) or 0)
+					else
+						return self:Msg("Can't add "..string.lower(name).." spot due to no position being inputted!")
+					end
+				end
+
+				//GMBots:Msg("Adding "..string.lower(name).." spot at: "..(pos.x..pos.y..pos.z))
+				return GMBots["Add"..name.."Spot"](pos)
+			end)
+		end
+	end
+end
+GMBots:AddSpotType("Wander",true)
+--[[
 function GMBots:GetHidingSpot()
 	if not self.NavHidingSpots then
 		local navareas = navmesh.GetAllNavAreas()
@@ -64,25 +166,61 @@ function GMBots:GetHidingSpot()
 	end
 	return self.NavHidingSpots[math.random(1,#self.NavHidingSpots)]
 end
+]]
 
 function CUSERCMD:AddButtons(...)
 	return self:SetButtons(bit.bor(self:GetButtons(),...))
 end
 
+PLAYER.RealConCommand = PLAYER.RealConCommand or PLAYER.ConCommand
+function PLAYER:ConCommand(str)
+	if self:IsGMBot() then // concommand doesn't work on bots, workaround by using the internal function concommand.Run
+		local split = string.Split( str," " )
+		local args = table.Copy(split)
+
+		table.remove(args,1)
+		local argsStr = table.concat(args," ")
+		concommand.Run(self,split[1],args,argsStr)
+	end
+
+	return self:RealConCommand(str)
+end
+
+function PLAYER:ClearGMBotVars()
+	self.__GMBots = self.__GMBots or {}
+	self.__GMBots.Vars = {}
+end
+
+function PLAYER:SetGMBotVar(key,value)
+	self.__GMBots = self.__GMBots or {}
+	self.__GMBots.Vars = self.__GMBots.Vars or {}
+
+	self.__GMBots.Vars[key] = value
+end
+
+function PLAYER:GetGMBotVar(key)
+	self.__GMBots.Vars = self.__GMBots.Vars or {}
+	return self.__GMBots.Vars[key]
+end
+
+PLAYER.ClearGMBotsVar = PLAYER.ClearGMBotVar
+PLAYER.SetGMBotsVar = PLAYER.SetGMBotVar
+PLAYER.GetGMBotsVar = PLAYER.GetGMBotVar
+
 function PLAYER:BotJump()
-	if not ( SERVER and self and self:IsValid() and self.GMBot and self:Alive() and self.GMBotsCMD ) then return end
+	if not ( SERVER and self and self:IsValid() and self:IsGMBot() and self:Alive() and self.GMBotsCMD ) then return end
 	local cmd = self.GMBotsCMD
 
-	self.GMBot_JumpTimer = self.GMBot_JumpTimer or 0
+	self.__GMBot_JumpTimer = self.GMBot_JumpTimer or 0
 
-	if CurTime() > self.GMBot_JumpTimer and not self.BotDontJump then
+	if CurTime() > self.__GMBot_JumpTimer and not self.GMBotDontJump then
 		cmd:SetButtons(bit.bor(cmd:GetButtons(),IN_JUMP))
-		self.GMBot_JumpTimer = CurTime() + math.random(0.5,0.8)
+		self.__GMBot_JumpTimer = CurTime() + math.random(0.5,0.8)
 	end
 end
 
 function PLAYER:IsGMBot()
-	return self.GMBot or table.HasValue(GMBots.BotList,self)
+	return self.GMBot or (self:GetInfoNum( "gmbots_become_bot", 0 ) > 0)
 end
 
 local function botChat(self,text,teamOnly)
@@ -124,7 +262,7 @@ function PLAYER:BotLookAt(pos)
 		if IsEntity(pos) and pos:IsValid() then
 			pos = pos:GetPos()
 		end
-		local ang = ( pos - self:GetPos() ):GetNormalized():Angle()
+		local ang = ( pos - self:EyePos() ):GetNormalized():Angle()
 		self:SetEyeAngles(ang)
 		self.GMBotsCMD:SetViewAngles( ang )
 	end
@@ -196,7 +334,7 @@ end
 PLAYER.BotRetreat = PLAYER.BotRetreatFrom
 
 function PLAYER:BotAttackPlayer(enemy,mindist,maxdist,holdattack)
-	if not ( SERVER and self and self:IsValid() and self.GMBot and self:Alive() and self.GMBotsCMD ) then return end
+	if not ( SERVER and self and self:IsValid() and self:IsGMBot() and self:Alive() and self.GMBotsCMD ) then return end
 	if enemy and enemy:IsValid() and enemy:Alive() then
 
 	end

@@ -1,5 +1,3 @@
-include("gmbots/gmbots/sv_navmesh.lua")
-
 local PLAYER = FindMetaTable( "Player" )
 local CNAVAREA = FindMetaTable( "CNavArea" )
 GMBots.CustomBlockedNavAreas = {}
@@ -514,16 +512,18 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	local heightDifference = targetPosArea.Z - self:GetPos().Z
-	if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
-		self:BotJump()
-	end
+	if checkArea then
+		if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
+			self:BotJump()
+		end
 
-	if checkArea:HasAttributes(NAV_MESH_CROUCH) then
-		cmd:AddButtons(IN_DUCK)
-	end
+		if checkArea:HasAttributes(NAV_MESH_CROUCH) then
+			cmd:AddButtons(IN_DUCK)
+		end
 
-	if checkArea:HasAttributes(NAV_MESH_RUN) then
-		cmd:AddButtons(IN_RUN)
+		if checkArea:HasAttributes(NAV_MESH_RUN) then
+			cmd:AddButtons(IN_RUN)
+		end
 	end
 
 	if self:GetMoveType() == MOVETYPE_LADDER then
@@ -531,8 +531,8 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	// We got the target to go to, aim there && MOVE
-
-	local targetang = ( ply.targetArea - ply:GetPos() ):GetNormalized():Angle()
+	local targetAreaWithOffset = ply.targetArea + (ply:EyePos() - ply:GetPos())
+	local targetang = ( targetAreaWithOffset - ply:EyePos() ):GetNormalized():Angle()
 	cmd:SetViewAngles( targetang )
 	cmd:SetForwardMove( 1000 )
 	self:SetEyeAngles(targetang)
