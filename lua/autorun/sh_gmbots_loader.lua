@@ -9,7 +9,19 @@ function PLAYER:IsTyping()
 	return self:RealIsTyping()
 end
 
+PLAYER.RealNick = PLAYER.RealNick or PLAYER.Nick
+function PLAYER:Nick()
+	//if self:IsGMBot() then return "BOT "..self:RealNick() end
+	return self:RealNick()
+end
+PLAYER.Name = PLAYER.Nick
+PLAYER.GetName = PLAYER.Nick
+
 if CLIENT then
+	function PLAYER:IsGMBot()
+		return self.GMBot or self:GetNWBool("IsGMBot") or (self == LocalPlayer() and self:GetInfoNum( "gmbots_become_bot", 0 ) > 0)
+	end
+
 	CreateConVar( "gmbots_become_bot", 0, FCVAR_USERINFO, "Whether you should be a bot or not. Mostly used for debugging purposes", 0, 1)
 
 	hook.Add("StartCommand","__GMBots_JumpLagFix",function(ply, cmd)

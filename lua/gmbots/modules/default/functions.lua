@@ -48,7 +48,7 @@ local function getNavHidingSpot()
 	if #navAreas > 0 then
 		local i = 0
 		local area = nil
-		while not area or #area:GetHidingSpots() <= 0 and i < 1000 do
+		while not area or #area:GetHidingSpots() <= 0 and i < 256 do
 			i = i + 1
 			area = navAreas[math.random(1,#navAreas)]
 		end
@@ -60,15 +60,18 @@ local function getNavHidingSpot()
 	return Vector()
 end
 GMBots.GetHidingSpot = getNavHidingSpot
+GMBots.GetHidingSpotFromNavMesh = getNavHidingSpot
 
-function GMBots:AddSpotType(name,addCommands)
+local spotDir = "gmbots/spots"
+function GMBots:AddSpotType(name,addCommands,noSpotFallback)
 	GMBots.Spots = GMBots.Spots or {}
+
 	if not GMBots.Spots[name] then
 		GMBots.Spots[name] = {}
 
 		GMBots["Get"..name.."Spot"] = function(key)
+			--[[
 			if GMBots.Spots[name][key] then return GMBots.Spots[name][key] end
-			print(GMBots.Spots[name])
 			if #GMBots.Spots[name] <= 0 then
 				local navAreas = navmesh.GetAllNavAreas()
 				if #navAreas > 0 then
@@ -81,7 +84,8 @@ function GMBots:AddSpotType(name,addCommands)
 					local backupSpot = backupArea:GetHidingSpots()[math.random(1,#backupArea:GetHidingSpots())]
 					return backupSpot
 				end
-			end
+			end]]
+			(noSpotFallback or getNavHidingSpot)()
 
 			return GMBots.Spots[name][key] or GMBots.Spots[name][math.random(1,#GMBots.Spots[name])] or table.Random(GMBots.Spots[name]) or Vector()
 		end
@@ -97,25 +101,33 @@ function GMBots:AddSpotType(name,addCommands)
 			return spot
 		end
 
-		local fileDir = "gmbots/spots/"..name.."/"..game.GetMap()..".json"
+		local fileDir = spotDir.."/"..name.."/"..game.GetMap()..".json"
 		GMBots["Load"..name.."Spots"] = function()
 			local json = file.Read( fileDir, "DATA" )
+			print("loading "..name.." spots")
 			if json then
 				local jsonSpots = util.JSONToTable(json)
 				local spots = {}
 
 				// Make sure the loaded json is sequential, otherwise stuff will break
 				for _,v in pairs(jsonSpots) do
-					if v then
+					if v and isvector(v) then
 						spots[#spots + 1] = v
 					end
 				end
+				PrintTable(spots)
 
 				GMBots.Spots[name] = spots
 			end
 		end
 
 		GMBots["Save"..name.."Spots"] = function(prettyPrint)
+			if #GMBots.Spots[name] <= 0 then return end
+
+			file.CreateDir(spotDir.."/"..name,"DATA")
+			if not file.Exists("gmbots/spots/"..name,"DATA") then
+				file.Write("gmbots/spots/"..name)
+			end
 			file.Write( fileDir, util.TableToJSON( GMBots.Spots[name], prettyPrint ) )
 		end
 		GMBots["Load"..name.."Spots"]()
@@ -143,7 +155,7 @@ function GMBots:AddSpotType(name,addCommands)
 		end
 	end
 end
-GMBots:AddSpotType("Wander",true)
+
 --[[
 function GMBots:GetHidingSpot()
 	if not self.NavHidingSpots then
@@ -199,6 +211,7 @@ function PLAYER:SetGMBotVar(key,value)
 end
 
 function PLAYER:GetGMBotVar(key)
+	self.__GMBots = self.__GMBots or {}
 	self.__GMBots.Vars = self.__GMBots.Vars or {}
 	return self.__GMBots.Vars[key]
 end
@@ -257,10 +270,10 @@ end
 
 function PLAYER:BotLookAt(pos)
 	if self and self:IsValid() and pos and self.GMBotsCMD then
-		assert(not (pos and IsValid(pos)),"Missing/invalid argument 1, argument 1 should be a entity or vector value.")
+		assert((pos),"Missing/invalid argument 1, argument 1 should be a entity or vector value.")
 
 		if IsEntity(pos) and pos:IsValid() then
-			pos = pos:GetPos()
+			pos = pos:GetPos() + pos:OBBCenter()
 		end
 		local ang = ( pos - self:EyePos() ):GetNormalized():Angle()
 		self:SetEyeAngles(ang)
@@ -332,6 +345,47 @@ function PLAYER:BotRetreatFrom(pos)
 end
 
 PLAYER.BotRetreat = PLAYER.BotRetreatFrom
+
+function PLAYER:LookForPlayers(team,filter)
+	for a,plr in pairs(player.GetAll()) do
+		if plr and plr:IsValid() and plr ~= self then
+			if filter and not filter() then continue end
+			if team ~= nil and plr:Team() ~= team then continue end
+
+			if self:BotVisible(plr) and plr:Alive() then
+				return plr
+			end
+		end
+	end
+end
+
+function PLAYER:BotChase(chasing)
+	if not (chasing and chasing:IsValid()) then return end
+
+	if self.__GMBots.ChaseTarget ~= chasing then
+		self.__GMBots.ChaseLastSeenPos = nil
+		self.__GMBots.ChaseLastSeenTime = CurTime()
+		self.__GMBots.ChaseTarget = chasing
+	end
+
+	self.__GMBots.ChaseLastSeenTime = self.__GMBots.ChaseLastSeenTime or CurTime()
+	if self:Visible(chasing) then
+		self.__GMBots.ChaseLastSeenPos = chasing:GetPos()
+		self.__GMBots.ChaseLastSeenTime = CurTime()
+	elseif CurTime()-self.__GMBots.ChaseLastSeenTime > 4 then
+		self.__GMBots.ChaseLastSeenPos = chasing:GetPos()
+	else
+		if self.__GMBots.ChaseLastSeenPos and self.__GMBots.ChaseLastSeenPos:Distance(self:GetPos()) < 15 then
+			self.__GMBots.ChaseLastSeenPos = chasing:GetPos()
+		end
+	end
+
+	if CurTime()-self.__GMBots.ChaseLastSeenTime > 15 then
+		return false // We lost em
+	end
+	self:Pathfind(self.__GMBots.ChaseLastSeenPos or chasing:GetPos())
+	return true
+end
 
 function PLAYER:BotAttackPlayer(enemy,mindist,maxdist,holdattack)
 	if not ( SERVER and self and self:IsValid() and self:IsGMBot() and self:Alive() and self.GMBotsCMD ) then return end

@@ -1,3 +1,21 @@
+local FindMetaTable = FindMetaTable
+local Vector = Vector
+local table = table
+local util = util
+local debugoverlay = debugoverlay
+local Color = Color
+local pairs = pairs
+local navmesh = navmesh
+local IsValid = IsValid
+local timer = timer
+local IsEntity = IsEntity
+local GetConVar = GetConVar
+local player = player
+local math = math
+local CurTime = CurTime
+local SysTime = SysTime
+local istable = istable
+
 local PLAYER = FindMetaTable( "Player" )
 local CNAVAREA = FindMetaTable( "CNavArea" )
 GMBots.CustomBlockedNavAreas = {}
@@ -8,10 +26,10 @@ function CNAVAREA:IsBlocked(...)
 end
 
 local blockWhitelist = {
-	"prop_physics",
-	"prop_physics_multiplayer",
-	"func_button",
-	"player"
+	["prop_physics"] = true,
+	["prop_physics_multiplayer"] = true,
+	["func_button"] = true,
+	["player"] = true
 }
 
 // find a way to do optimize a path generated using astar.
@@ -38,7 +56,7 @@ function CNAVAREA:CheckBlocked()
 		mins = mins,
 		maxs = maxs,
 		filter = function(ent)
-			if table.HasValue(blockWhitelist,ent:GetClass()) then return false end
+			if blockWhitelist[ent:GetClass()] then return false end
 			if GMBots:IsDoor(ent) && !GMBots:IsDoorLocked(ent) then return false end
 			return true
 		end,
@@ -116,15 +134,24 @@ local function finalize_path(total_path)
 		local point = total_path[i]
 		if point then
 			local next_point = total_path[i - 1]
-			local last_point = total_path[i - 1]
-			--[[if last_point then
-				//new_path[#new_path + 1] = last_point:GetClosestPointOnArea(  point:GetCenter() )
+			local last_point = total_path[i + 1]
+
+			if not point:HasAttributes(NAV_MESH_PRECISE) then
+				if next_point then
+					local last_pos = new_path[#new_path - 1]
+					local point_pos = point:GetClosestPointOnArea(  next_point:GetCenter() )
+
+					new_path[#new_path + 1] = point_pos
+				end
+
+
+				//new_path[#new_path + 1] = point:GetCenter()
+				//if last_point then
+					//new_path[#new_path + 1] = point:GetClosestPointOnArea(  last_point:GetCenter() )
+				//end
+			else
+				new_path[#new_path + 1] = point:GetCenter()
 			end
-			]]
-			if next_point then
-				new_path[#new_path + 1] = (last_point || point):GetClosestPointOnArea(  next_point:GetCenter() )
-			end
-			new_path[#new_path + 1] = point:GetCenter()
 		end
 	end
 	return new_path
@@ -376,16 +403,23 @@ local function canTeleport(bot,pos)
 	return !cantTeleport
 end
 
+local function gotoGoal(ply,goal)
+	local cmd = ply.GMBotsCMD || ply.cmd
+	if not ply or not cmd then return end
+
+	checkJump(ply)
+	checkDuck(ply)
+
+	cmd:SetViewAngles( ( goal - ply:GetPos() ):GetNormalized():Angle() )
+	cmd:SetForwardMove( 1000 )
+end
+
 function PLAYER:Pathfind(pos,cheap)
 	local ply = self
     local cmd = ply.GMBotsCMD || ply.cmd
 
 	// Only run this code on bots
-	if !( cmd && ply && ply:IsValid() && ply:IsGMBot() ) then return end
-
-    if NUBZIGATE && self.Nubzigate then
-        return self:Nubzigate(pos,cheap)
-    end
+	if !( cmd && ply && ply:IsValid() && ply:IsGMBot() && !ply:IsFrozen() ) then return end
 
 	cmd:ClearButtons()
 	cmd:ClearMovement()
@@ -399,8 +433,8 @@ function PLAYER:Pathfind(pos,cheap)
 
 	// internal variable to limit how often the path can be (re)generated
 	ply.lastRePath2 = ply.lastRePath2 || 0
-	if ( ply.path && ply.lastRePath + rePathDelay < CurTime() && currentArea != ply.targetArea ) then
-		ply.path = nil
+	if ( ply.__GMBotsPath && ply.lastRePath + rePathDelay < CurTime() && currentArea != ply.targetArea ) then
+		ply.__GMBotsPath = nil
 		ply.lastRePath = CurTime()
 	end
 
@@ -412,21 +446,27 @@ function PLAYER:Pathfind(pos,cheap)
 		return
 	end
 
-	if ( !ply.path && ply.lastRePath2 + rePathDelay < CurTime() ) then
+	if ply.__GMBotsPathFailed then
+		gotoGoal(ply,pos)
+	end
+
+	if ( !ply.__GMBotsPath && ply.lastRePath2 + rePathDelay < CurTime() ) then
 		local startGenTime = SysTime()
+		ply.__GMBotsPathFailed = false
 		ply.targetArea = nil
-		ply.path = Astar( currentArea, targetArea, self)
-		if ( !istable( ply.path ) ) then // We are in the same area as the target, || we can't navigate to the target
-			ply.path = nil // Clear the path, bail && try again next time
+		ply.__GMBotsPath = Astar( currentArea, targetArea, self)
+		if ( !istable( ply.__GMBotsPath ) ) then // We are in the same area as the target, || we can't navigate to the target
+			ply.__GMBotsPath = nil // Clear the path, bail && try again next time
 			ply.lastRePath2 = CurTime()
+			ply.__GMBotsPathFailed = true
+
 			return
 		end
-		//PrintTable( ply.path )
+		//PrintTable( ply.__GMBotsPath )
 
 		// TODO: Add inbetween points on area intersections
 		// TODO: On last area, move towards the target position, not center of the last area
-		table.remove( ply.path ) // Just for this example, remove the starting area, we are already in it!
-		drawThePath( ply.path, rePathDelay+0.05 )
+		drawThePath( ply.__GMBotsPath, rePathDelay+0.05 )
 		local endGenTime = SysTime()
 		local totalTime = endGenTime - startGenTime
 
@@ -438,26 +478,29 @@ function PLAYER:Pathfind(pos,cheap)
 	end
 
 	// We have no path, || its empty (we arrived at the goal), try to get a new path.
-	if ( !ply.path || #ply.path < 1 ) then
-		ply.path = nil
+	if ( !ply.__GMBotsPath || #ply.__GMBotsPath < 1 ) then
+		ply.__GMBotsPath = nil
 		ply.targetArea = nil
+		gotoGoal(ply,pos)
 		return
 	end
 
 	// We got a path to follow to our target!
-	//drawThePath( ply.path, .1 ) // Draw the path for debugging
+	//drawThePath( ply.__GMBotsPath, .1 ) // Draw the path for debugging
 	// Select the next area we want to go into
 	if ( !IsValid( ply.targetArea ) ) then
-		ply.targetArea = ply.path[ #ply.path ]
+		ply.targetArea = ply.__GMBotsPath[ #ply.__GMBotsPath ]
 	end
 
+	local selfPosNoZ = self:GetPos()
+	local selfPosNoZ = Vector(selfPosNoZ.X,selfPosNoZ.Y,0)
+
 	// The area we selected is invalid || we are already there, remove it, bail && wait for next cycle
-	if ( !ply.targetArea || (ply.targetArea:Distance( ply:GetPos() ) < 16) ) then
-		table.remove( ply.path ) // Removes last element
+	if ( !ply.targetArea || ply.targetArea and (Vector(ply.targetArea.x,ply.targetArea.y,0):Distance( selfPosNoZ or ply:GetPos() ) < 16) ) then
+		table.remove( ply.__GMBotsPath ) // Removes last element
 		ply.targetArea = nil
 		return
 	end
-
 
 	self.lastStuckCheck = self.lastStuckCheck || CurTime()
 	if CurTime()-self.lastStuckCheck > 0.5 then
@@ -486,11 +529,10 @@ function PLAYER:Pathfind(pos,cheap)
 				end
 			end
 		end
-		local selfPosNoZ = self:GetPos()
 		local lastPosNoZ = self.lastUnstuckPos
 		selfPosNoZ = Vector(selfPosNoZ.X,selfPosNoZ.Y,0)
 		lastPosNoZ = Vector(lastPosNoZ.X,lastPosNoZ.Y,0)
-		if selfPosNoZ:Distance(lastPosNoZ) < 32 then
+		if selfPosNoZ:Distance(lastPosNoZ) < 16 then
 			if self.botStuckChecksPassed > 2 then
 				self:BotJump()
 			end
@@ -513,7 +555,8 @@ function PLAYER:Pathfind(pos,cheap)
 
 	local heightDifference = targetPosArea.Z - self:GetPos().Z
 	if checkArea then
-		if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP) || (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP) && !checkArea:HasAttributes(NAV_MESH_STAIRS)) then
+		// (heightDifference > self:GetStepSize())) && (!checkArea:HasAttributes(NAV_MESH_NO_JUMP)
+		if self:OnGround() && (checkArea:HasAttributes(NAV_MESH_JUMP)) then
 			self:BotJump()
 		end
 
@@ -538,7 +581,7 @@ function PLAYER:Pathfind(pos,cheap)
 	self:SetEyeAngles(targetang)
 
 	local eyetrace = self:GetEyeTrace()
-	if (eyetrace && IsValid(eyetrace.Entity) && !GMBots:IsDoorOpen(eyetrace.Entity) && !GMBots:IsDoorLocked(eyetrace.Entity) && !IsValid(eyetrace.Entity:GetInternalVariable("m_hActivator"))) then
+	if (eyetrace && IsValid(eyetrace.Entity) && GMBots:IsDoor(eyetrace.Entity) && !GMBots:IsDoorOpen(eyetrace.Entity) && !GMBots:IsDoorLocked(eyetrace.Entity) && !IsValid(eyetrace.Entity:GetInternalVariable("m_hActivator"))) then
 		cmd:SetButtons(IN_USE)
 		if eyetrace.Entity:GetPos():Distance(self:GetPos()) < 128 then
 			eyetrace.Entity:Use(self)
@@ -558,3 +601,23 @@ GMBots.Pathfinder = {}
 GMBots.Pathfinder.Reconstruct_Path = reconstruct_path
 GMBots.Pathfinder.Finalize_Path = finalize_path
 GMBots.Pathfinder.Astar = Astar
+
+
+--[[
+	STRING PULLING
+
+	I AM SUPER DUMB MAN SO I JUST STOLE IT OFF THE INTERNET
+	FROM http://digestingduck.blogspot.com/2010/03/simple-stupid-funnel-algorithm.html?m=1
+]]
+
+local function triarea2(a,b,c)
+	local ax = b[0] - a[0]
+	local ay = b[1] - a[1]
+	local bx = c[0] - a[0]
+	local by = c[1] - a[1]
+end
+
+function vequal(a, b)
+	local eq = 0.001*0.001
+	return vdistsqr(a, b) < eq
+end

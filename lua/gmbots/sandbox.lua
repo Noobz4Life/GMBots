@@ -4,6 +4,15 @@
 
 	Note that this wiki may not be up to date.
 ]]
+
+if SERVER and not game.SinglePlayer() then
+	for a,ply in pairs(player.GetAll()) do
+		if SERVER and ply and ply:IsValid() and ply:IsListenServerHost() then
+			ply:SendLua([[chat.AddText( Color(255,255,0), "[GMBots] Hey, you should install Zeta Players instead of this for sandbox use, it works much better in Sandbox compared to GMBots!\n")]])
+		end
+	end
+end
+
 GMBots:AddSpotType("Build",true)
 
 hook.Add("GMBotsConnected","GMBots_BotConnected",function(ply) -- Runs when a bot has been added.

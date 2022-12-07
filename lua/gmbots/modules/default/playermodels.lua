@@ -8,7 +8,7 @@ PLAYER.RealGetInfo = PLAYER.RealGetInfo or PLAYER.GetInfo
 PLAYER.RealGetInfoNum = PLAYER.RealGetInfoNum or PLAYER.GetInfoNum
 
 function PLAYER:GetInfo(cvarName)
-    if (self and self:IsValid() and self:IsBot()) and #self:RealGetInfo(cvarName) <= 0 then
+    if (GetConVar("gmbots_use_playermodels"):GetBool() and self and self:IsValid() and self:IsBot()) and #self:RealGetInfo(cvarName) <= 0 then
         if (string.Trim(string.lower(cvarName)) == "cl_playermodel") then
             if self.GMBotsPlayerModel == nil then
                 local playermodels = table.GetKeys( player_manager.AllValidModels() ) or {""}
@@ -55,5 +55,9 @@ function PLAYER:GetInfo(cvarName)
 end
 
 function PLAYER:GetInfoNum(cvarName,default)
+    if string.Trim(string.lower(cvarName)) == "cl_playermodel_selector_force" then //Enhanced Playermodel Selector support
+        return 1
+    end
+
     return self:RealGetInfoNum(cvarName,default)
 end

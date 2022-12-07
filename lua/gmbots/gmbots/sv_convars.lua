@@ -1,9 +1,12 @@
 local cheat_flag = bit.bor(FCVAR_CHEAT,FCVAR_UNREGISTERED)
 local pf_flag = bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING)
 
+CreateConVar("gmbots_use_playermodels",1,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"Should GMBots use cl_playermodel or should they use the gamemodes default model?\n(Only works in Sandbox or with Extended Playermodel Selector")
+
 CreateConVar("gmbots_pf_avoid_props",0,pf_flag,"Should GMBots pathfinding try to go around props?\nThis may be inaccurate, and will cause a performance hit.",0,1)
 CreateConVar("gmbots_pf_to_closest_area",1,pf_flag,"Should GMBots pathfinding try to pathfind to the closest NavArea if it fails to find a path?",0,1)
 CreateConVar("gmbots_pf_skip_avoid",0,pf_flag,"Should GMBots pathfinding skip areas marked as 'avoid'?")
+//CreateConVar("gmbots_pf_smooth",1,pf_flag,"Should GMBots try to smooth the pathfinding out at the cost of performance?",0,1)
 
 CreateConVar("gmbots_pf_teleportation",1,pf_flag,"Should bots teleport if stuck? (players marked as bots are always ignored)\n"
 	.."\n 0 = Don't teleport"

@@ -36,7 +36,7 @@ local function pathfindDebug(ply,cmd)
 	end
 
 	if GMBots.AutoCrouchJump and not ply:OnGround() then
-		cmd:SetButtons(bit.bor(cmd:GetButtons(),IN_DUCK))
+		cmd:AddKey(IN_DUCK)
 	end
 end
 
@@ -76,11 +76,17 @@ end)
 CreateConVar("gmbots_pause_while_typing",1,FCVAR_NEVER_AS_STRING,"Should bots disable their while typing?",0,1)
 
 GMBots:AddInternalHook("StartCommand", function(ply,cmd)
+	--[[if ply and ply:IsValid() then
+		ply:SetNWBool("IsGMBot",ply:IsGMBot())
+	end]]
 	if not (ply and ply:IsValid() and ply:IsGMBot()) then return end
 
 	if ply:IsGMBot() and !ply:IsBot() then
 		ply:PrintMessage(4,"You are currently a bot. You can type 'gmbots_become_bot 0' in console to disable being a bot!")
+		ply:SetNWBool("GMBot",true)
 	end
+
+	ply.__GMBots = ply.__GMBots or {}
 
 	if (player.GetCount() < 1) then
 		return
@@ -112,7 +118,7 @@ GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 	end)
 
 	if GMBots.AutoCrouchJump and not ply:OnGround() and ply:GetMoveType() ~= MOVETYPE_NOCLIP then
-		cmd:SetButtons(bit.bor(cmd:GetButtons(),IN_DUCK))
+		cmd:AddKey(IN_DUCK)
 	end
 
 	if not success then

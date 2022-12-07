@@ -120,6 +120,15 @@ function GMBots:AddBot(name)
 			GMBots:Msg("Can't create bot!")
 		end
 	end
+
+	local navareas = navmesh.GetAllNavAreas()
+	if (navareas and #navareas < 0) or not navareas then
+		GMBots:Msg("There isn't a navmesh!")
+		if GetConVar("gmbots_gen_navmesh"):GetInt() > 0 then
+			return GMBots:GenerateNavMesh()
+		end
+	end
+
 	local botName = tostring( name or self:GetDefaultName() or "???" )
 
 	GMBots.LastBotUsername = botName
@@ -331,13 +340,6 @@ if SERVER then
 			if game.SinglePlayer() then
 				GMBots:Msg("Game is set to singleplayer! Please change to have a player count of 2 or more for GMBots to run.")
 				return
-			end
-			local navareas = navmesh.GetAllNavAreas()
-			if (navareas and #navareas < 0) or not navareas then
-				GMBots:Msg("There isn't a navmesh!")
-				if GetConVar("gmbots_gen_navmesh"):GetInt() > 0 then
-					return GMBots:GenerateNavMesh()
-				end
 			end
 			GMBots:Load()
 		end
