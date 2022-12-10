@@ -17,6 +17,8 @@ CreateConVar("gmbots_pf_teleportation_location",0,pf_flag,"Where should the bots
 	.."\n 0 = Teleport to next pathfinding node"
 	.."\n 1 = Attempt to teleport to the center of the nearest navmesh")
 
+CreateConVar("gmbots_pause_while_typing",1,FCVAR_NEVER_AS_STRING,"Should bots disable their AI while typing?",0,1)
+
 CreateConVar("gmbots_collision", 1, bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"Enables custom collisions compared to normal players (This may be disabled by the current gamemode script)")
 //CreateConVar("gmbots_collision_bots",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"Should bots collide with other bots? (This may be disabled by the current gamemode script)")
 CreateConVar("gmbots_collision_doors",0,pf_flag,"Should bots collide with doors? (This may be disabled by the current gamemode script)")
@@ -27,3 +29,5 @@ CreateConVar("gmbots_debug_notarget",0,cheat_flag,"Should GMBots not target play
 CreateConVar("gmbots_debug_pathfind",0,cheat_flag,"Should GMBots pathfind to this player in the server? Number corresponds to the player's userid, which you can find by typing 'status' in console!",0,128)
 
 CreateConVar("gmbots_spawnmenu",1,bit.bor(FCVAR_NEVER_AS_STRING,FCVAR_REPLICATED),"Should GMBots settings show in the spawn menu?",0,1)
+
+CreateConVar("gmbots_bot_quota",0,bit.bor(FCVAR_ARCHIVE,FCVAR_NEVER_AS_STRING),"How many bots should automatically spawn to fill in player slots?",0,math.max(128,game.MaxPlayers()))

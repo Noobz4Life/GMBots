@@ -45,3 +45,5 @@ if CLIENT then
 		end
 	end)
 end
+
+include("gmbots/modules/default/voice.lua")

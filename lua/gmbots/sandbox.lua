@@ -150,7 +150,7 @@ hook.Add("GMBotsStart","GMBots_RunStart",function(ply,cmd) -- Initialize the hoo
 
 		end
 	else
-		ply:BotWander()
+		//ply:BotWander()
 	end
 	//fakeToolGunShoot(ply)
 

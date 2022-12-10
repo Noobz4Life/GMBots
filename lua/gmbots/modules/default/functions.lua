@@ -198,6 +198,8 @@ function PLAYER:ConCommand(str)
 	return self:RealConCommand(str)
 end
 
+PLAYER.BotName = PLAYER.Nick
+
 function PLAYER:ClearGMBotVars()
 	self.__GMBots = self.__GMBots or {}
 	self.__GMBots.Vars = {}
@@ -227,7 +229,7 @@ function PLAYER:BotJump()
 	self.__GMBot_JumpTimer = self.GMBot_JumpTimer or 0
 
 	if CurTime() > self.__GMBot_JumpTimer and not self.GMBotDontJump then
-		cmd:SetButtons(bit.bor(cmd:GetButtons(),IN_JUMP))
+		cmd:AddKey(IN_JUMP)
 		self.__GMBot_JumpTimer = CurTime() + math.random(0.5,0.8)
 	end
 end
@@ -281,23 +283,24 @@ function PLAYER:BotLookAt(pos)
 	end
 end
 
-function PLAYER:BotWander()
-	self.WanderSpot = self.WanderSpot or GMBots:GetHidingSpot() or self:GetPos()
-	self.WanderTime = self.WanderTime or CurTime()+math.random(10,60)
-	local dist = self.WanderSpot:Distance(self:GetPos())
+function PLAYER:BotWander(fear)
+	self.__GMBots = self.__GMBots or {}
+	self.__GMBots.WanderSpot = self.__GMBots.WanderSpot or GMBots:GetHidingSpot() or self:GetPos()
+	self.__GMBots.WanderTime = self.__GMBots.WanderTime or CurTime()+math.random(10,60)
+	local dist = self.__GMBots.WanderSpot:Distance(self:GetPos())
 	if dist > 20 then
-		self:Pathfind(self.WanderSpot,true)
+		self:Pathfind(self.__GMBots.WanderSpot,true,fear)
 	else
-		self.WanderTime = self.WanderTime/1.01
-		if not self.WanderReached then
+		self.__GMBots.WanderTime = self.__GMBots.WanderTime/1.01
+		if not self.__GMBots.WanderReached then
 			self:BotDebug("Reached wander spot.")
-			self.WanderReached = true
+			self.__GMBots.WanderReached = true
 		end
 	end
-	if CurTime() > self.WanderTime then
-		self.WanderTime = nil
-		self.WanderSpot = nil
-		self.WanderReached = false
+	if CurTime() > self.__GMBots.WanderTime then
+		self.__GMBots.WanderTime = nil
+		self.__GMBots.WanderSpot = nil
+		self.__GMBots.WanderReached = false
 	end
 end
 
@@ -349,12 +352,52 @@ PLAYER.BotRetreat = PLAYER.BotRetreatFrom
 function PLAYER:LookForPlayers(team,filter)
 	for a,plr in pairs(player.GetAll()) do
 		if plr and plr:IsValid() and plr ~= self then
-			if filter and not filter() then continue end
+			if filter and not filter(plr) then continue end
 			if team ~= nil and plr:Team() ~= team then continue end
 
 			if self:BotVisible(plr) and plr:Alive() then
 				return plr
 			end
+		end
+	end
+end
+
+function PLAYER:SetReaction(reactionName,target)
+	self.__GMBots = self.__GMBots or {}
+	self.__GMBots.ReactionTarget = self.__GMBots.ReactionTarget or {}
+	if target and target ~= self.__GMBots.ReactionTarget[reactionName] then
+		self.__GMBots.ReactionTime = self.__GMBots.ReactionTime or {}
+
+		self.__GMBots.ReactionTarget[reactionName] = target
+		self.__GMBots.ReactionTime[reactionName] = CurTime() + math.random(0.4,0.8)
+	end
+end
+
+function PLAYER:HasReacted(reactionName)
+	self.__GMBots.ReactionTime = self.__GMBots.ReactionTime or {}
+	if not self.__GMBots then return false end
+	local reactionTime = self.__GMBots.ReactionTime[reactionName] or 0
+
+	return CurTime() > reactionTime
+end
+
+function PLAYER:ResetReaction(reactionName)
+	self.__GMBots.ReactionTime = self.__GMBots.ReactionTime or {}
+	self.__GMBots.ReactionTarget = self.__GMBots.ReactionTarget or {}
+
+	self.__GMBots.ReactionTarget[reactionName] = nil
+	self.__GMBots.ReactionTime[reactionName] = nil
+end
+
+function PLAYER:ResetReactions()
+	self.__GMBots.ReactionTarget = {}
+	self.__GMBots.ReactionTime = {}
+end
+
+function PLAYER:LookForEntities(name,filter)
+	for a,ent in pairs(ents.FindByClass(name or "*")) do
+		if ent and ent:IsValid() and ent ~= self and self:BotVisible(ent) and not (filter and filter(ent)) then
+			return ent
 		end
 	end
 end

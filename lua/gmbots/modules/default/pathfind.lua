@@ -2,7 +2,7 @@ local FindMetaTable = FindMetaTable
 local Vector = Vector
 local table = table
 local util = util
-local debugoverlay = debugoverlay
+local debugoverlay = GMBots.Debug
 local Color = Color
 local pairs = pairs
 local navmesh = navmesh
@@ -123,9 +123,27 @@ GMBots:AddInternalHook("EntityTakeDamage",updateNearNavAreas)
 GMBots:AddInternalHook("PostCleanupMap",function() GMBots:UpdateNavBlocked() end)
 GMBots:AddInternalHook("VariableEdited",updateEntNavArea)
 
-local function heuristic_cost_estimate( start, goal )
+local function getFearPos(fear)
+	if fear and IsEntity(fear) and fear:IsValid() then
+		return fear:GetPos()
+	end
+
+	if fear and isvector(fear) then
+		return fear
+	end
+
+	if fear and fear.GetCenter then
+		return fear:GetCenter()
+	end
+end
+
+local function heuristic_cost_estimate( start, goal, fear )
 	// Perhaps play with some calculations on which corner is closest/farthest || whatever
-	return start:GetCenter():Distance( goal:GetCenter() )
+	local fearAmount = 0
+	if fear then
+		fearAmount = 1000000 / start:GetCenter():Distance(fear)
+	end
+	return start:GetCenter():Distance( goal:GetCenter() ) + fearAmount
 end
 
 local function finalize_path(total_path)
@@ -267,7 +285,7 @@ local function checkJump(ply)
 
 		trace = util.TraceHull(headTrace)
 		if !trace.Hit then
-			cmd:AddButtons(IN_JUMP)
+			ply:BotJump()
 			//print('jumpy')
 			debugColor = Color(255,255,0,100)
 		end
@@ -276,7 +294,7 @@ local function checkJump(ply)
 	end
 end
 
-local function Astar( start, goal, ply )
+local function Astar( start, goal, ply, fear )
 	if ( !IsValid( start ) || !IsValid( goal ) ) then return false end
 	if ( start == goal ) then return true end
 
@@ -294,6 +312,11 @@ local function Astar( start, goal, ply )
 	local closest_accessible = nil
 	local closest_accessible_distance = 0
 
+	local fearPos = nil
+	if fear then
+		fearPos = getFearPos(fear)
+	end
+
 	while ( !start:IsOpenListEmpty() ) do
 		local current = start:PopOpenList() // Remove the area with lowest cost in the open list && return it
 		if ( current == goal ) then
@@ -302,7 +325,7 @@ local function Astar( start, goal, ply )
 		current:AddToClosedList()
 
 		for k, neighbor in pairs( current:GetAdjacentAreas() ) do
-			local newCostSoFar = current:GetCostSoFar() + heuristic_cost_estimate( current, neighbor )
+			local newCostSoFar = current:GetCostSoFar() + heuristic_cost_estimate( current, neighbor, fearPos )
 
 			if ( neighbor:IsUnderwater() || neighbor:IsBlocked(nil,false))
 			|| ( ( neighbor:IsOpen() || neighbor:IsClosed() ) && neighbor:GetCostSoFar() <= newCostSoFar )
@@ -310,7 +333,7 @@ local function Astar( start, goal, ply )
 				continue
 			end
 
-			if(GetConVar("gmbots_pf_skip_avoid"):GetInt() > 0 && neighbor:HasAttributes(NAV_MESH_AVOID)) then
+			if(GetConVar("gmbots_pf_skip_avoid"):GetBool() && neighbor:HasAttributes(NAV_MESH_AVOID)) then
 				continue
 			end
 
@@ -450,7 +473,7 @@ function PLAYER:Pathfind(pos,cheap)
 		gotoGoal(ply,pos)
 	end
 
-	if ( !ply.__GMBotsPath && ply.lastRePath2 + rePathDelay < CurTime() ) then
+	if ( !ply.__GMBotsPath && ply.lastRePath2 + rePathDelay < CurTime() && ply:OnGround() ) then
 		local startGenTime = SysTime()
 		ply.__GMBotsPathFailed = false
 		ply.targetArea = nil
@@ -594,13 +617,15 @@ function PLAYER:Pathfind(pos,cheap)
 
 	//obstacle_avoidance()
 
-	if GMBots:IsDebugMode() then debugoverlay.Line(self:EyePos(),self:EyePos() + cmd:GetViewAngles():Forward()*100,0,Color(255,255,0)) end
+	GMBots.Debug.Line(self:EyePos(),self:EyePos() + cmd:GetViewAngles():Forward()*100,0,Color(255,255,0))
 end
 
 GMBots.Pathfinder = {}
 GMBots.Pathfinder.Reconstruct_Path = reconstruct_path
 GMBots.Pathfinder.Finalize_Path = finalize_path
 GMBots.Pathfinder.Astar = Astar
+GMBots.Pathfinder.CheckJump = checkJump
+GMBots.Pathfinder.CheckDuck = checkDuck
 
 
 --[[

@@ -4,13 +4,13 @@ GMBots.GamemodeSupported = false
 GMBots.BotPrefix = "BOT "
 GMBots.BotUsernames = {}
 GMBots.LastBotUsername = ""
-GMBots.AmountOfBots = 0
+GMBots.BotCount = 0
 GMBots.Spots = {}
 
 include("gmbots/gmbots/sv_convars.lua")
 
-function GMBots:AddInternalHook(eventName,func)
-	return hook.Add(eventName,"__GMBots_"..eventName.."Default_DoNotOverwritePleaseTY",func)
+function GMBots:AddInternalHook(eventName,func,identifier)
+	return hook.Add(eventName,"__GMBots_"..eventName.."_"..tostring(identifier),func)
 end
 
 function GMBots:GetBots()
@@ -18,7 +18,7 @@ function GMBots:GetBots()
 	local bots = {}
 	for i = 1,#players do
 		local ply = players[i]
-		if ply and ply:IsValid() and ply:IsPlayer() and ply:IsGMBot() then
+		if ply and ply:IsValid() and ply:IsPlayer() and ply:IsGMBot() and ply:IsBot() then
 			bots[#bots + 1] = ply
 		end
 	end
@@ -38,6 +38,11 @@ function GMBots:Msg(msg,col)
 	return MsgC( col or Color(0,255,0), "[GMBots] "..tostring(msg).."\n")
 end
 
+function GMBots:Warn(msg)
+	prefix = prefix or "GMBots Error"
+	return MsgC( Color(255,255,0), "[GMBots Warning] "..tostring(msg).."\n")
+end
+
 function GMBots:Err(msg,prefix)
 	prefix = prefix or "GMBots Error"
 	ErrorNoHalt()
@@ -49,7 +54,7 @@ function GMBots:MsgLine(col,col2) -- having 2 colors is a way to make sure peopl
 end
 
 function GMBots:IsDebugMode()
-	return GetConVar("gmbots_debug_mode"):GetInt() > 0
+	return GetConVar("gmbots_debug_mode"):GetBool()
 end
 
 function GMBots:LoadCFG()
@@ -104,6 +109,7 @@ function GMBots:GenerateNavMesh()
 			navmesh.AddWalkableSeed( trace.HitPos, trace.HitNormal )
 		end
 	end
+	navmesh.BeginGeneration()
 end
 
 function GMBots:GetDefaultName(nameList)
@@ -119,12 +125,13 @@ function GMBots:AddBot(name)
 		else
 			GMBots:Msg("Can't create bot!")
 		end
+		return
 	end
 
 	local navareas = navmesh.GetAllNavAreas()
 	if (navareas and #navareas < 0) or not navareas then
 		GMBots:Msg("There isn't a navmesh!")
-		if GetConVar("gmbots_gen_navmesh"):GetInt() > 0 then
+		if GetConVar("gmbots_gen_navmesh"):GetBool() then
 			return GMBots:GenerateNavMesh()
 		end
 	end
@@ -137,6 +144,7 @@ function GMBots:AddBot(name)
 	if bot and bot:IsValid() then
 		bot.GMBot = true
 		bot.IsGMBot = function() return true end
+		bot.BotName = function() return botName end
 
 		bot.__GMBots = {}
 
@@ -146,9 +154,7 @@ function GMBots:AddBot(name)
 		hook.Run("GMBotsBotAdded",bot)
 		self:Msg("Bot added")
 
-		GMBots.AmountOfBots = GMBots.AmountOfBots+1
-	else
-		self:Err("Failed to create bot!")
+		GMBots.BotCount = GMBots.BotCount+1
 	end
 	return bot
 end
@@ -225,13 +231,13 @@ if CLIENT then
 	language.Add( "GMBots_Settings", "Settings" )
 	language.Add( "GMBots_Pathfinding", "Pathfinding" )
 	hook.Add( "AddToolMenuCategories", "GMBots_CustomCategory", function()
-		if GetConVar("gmbots_spawnmenu"):GetInt() > 0 then
+		if GetConVar("gmbots_spawnmenu"):GetBool() then
 			spawnmenu.AddToolCategory( "Utilities", "GMBots", "#GMBots_Menu" )
 		end
 	end )
 
 	hook.Add( "PopulateToolMenu", "GMBots_CustomMenuSettings", function()
-		if GetConVar("gmbots_spawnmenu"):GetInt() > 0 then
+		if GetConVar("gmbots_spawnmenu"):GetBool() then
 			spawnmenu.AddToolMenuOption( "Utilities", "GMBots", "GMBots_Settings", "#GMBots_Settings", "", "", function( panel )
 				panel:ClearControls()
 
@@ -245,7 +251,7 @@ if CLIENT then
 				panel:ControlHelp( GetConVar("gmbots_pf_skip_avoid"):GetHelpText() )
 
 
-				if (GetConVar("sv_cheats"):GetInt() <= 0) then return end
+				if not (GetConVar("sv_cheats"):GetBool()) then return end
 				panel:CheckBox( "Debug Mode","gmbots_debug_mode")
 				panel:ControlHelp( GetConVar("gmbots_debug_mode"):GetHelpText() )
 

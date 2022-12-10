@@ -67,23 +67,22 @@ GMBots:AddInternalHook("PlayerSpawn",function(ply,transition)
 			end
 
 			hook.Run("GMBotsSpawn",ply,transition)
-		else
-			ply.__GMBots = nil // clear this so it doesn't take up memory
+		elseif not ply.__GMBots or #ply.__GMBots > 0 then
+			ply.__GMBots = {} // clear this so it doesn't take up memory
 		end
 	end
 end)
-
-CreateConVar("gmbots_pause_while_typing",1,FCVAR_NEVER_AS_STRING,"Should bots disable their while typing?",0,1)
 
 GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 	--[[if ply and ply:IsValid() then
 		ply:SetNWBool("IsGMBot",ply:IsGMBot())
 	end]]
-	if not (ply and ply:IsValid() and ply:IsGMBot()) then return end
+	if not (ply and ply:IsValid() and ply:IsGMBot()) then ply:SetNWBool("IsGMBot",false) return end
+
+	ply:SetNWBool("IsGMBot",true)
 
 	if ply:IsGMBot() and !ply:IsBot() then
 		ply:PrintMessage(4,"You are currently a bot. You can type 'gmbots_become_bot 0' in console to disable being a bot!")
-		ply:SetNWBool("GMBot",true)
 	end
 
 	ply.__GMBots = ply.__GMBots or {}
@@ -100,12 +99,12 @@ GMBots:AddInternalHook("StartCommand", function(ply,cmd)
 	cmd:ClearButtons()
 	cmd:ClearMovement()
 
-	if cmd:GetImpulse() ~= 100 then cmd:SetImpulse(0) end
-
 	cmd:SetMouseX(0)
 	cmd:SetMouseY(0)
 
-	if ply:IsTyping() and GetConVar("gmbots_pause_while_typing"):GetInt() > 0 then return end
+	if cmd:GetImpulse() ~= 100 then cmd:SetImpulse(0) end
+
+	if ply:IsTyping() and GetConVar("gmbots_pause_while_typing"):GetBool() then return end
 
 	ply.GMBotsCMD = cmd
 	ply.GMBotDontJump = false
