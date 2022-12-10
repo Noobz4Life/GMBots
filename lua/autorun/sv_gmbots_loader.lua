@@ -1,13 +1,5 @@
 --- [[ WELCOME TO GMBOTS REWRITTEN ]] ---
 GMBots = {}
-GMBots.GamemodeSupported = false
-GMBots.BotPrefix = "BOT "
-GMBots.BotUsernames = {}
-GMBots.LastBotUsername = ""
-GMBots.BotCount = 0
-GMBots.Spots = {}
-
-include("gmbots/gmbots/sv_convars.lua")
 
 function GMBots:AddInternalHook(eventName,func,identifier)
 	return hook.Add(eventName,"__GMBots_"..eventName.."_"..tostring(identifier),func)
@@ -35,7 +27,9 @@ function GMBots:AddCommand(name,callback,helpText,flags)
 end
 
 function GMBots:Msg(msg,col)
-	return MsgC( col or Color(0,255,0), "[GMBots] "..tostring(msg).."\n")
+	local defaultCol = Color(0,255,0)
+	if CLIENT then defaultCol = Color(0,175,255) end
+	return MsgC( col or defaultCol, "[GMBots] "..tostring(msg).."\n")
 end
 
 function GMBots:Warn(msg)
@@ -118,121 +112,129 @@ function GMBots:GetDefaultName(nameList)
 	return defaultNames[math.random(1,#defaultNames)]
 end
 
-if SERVER then
-	function GMBots:AddBot(name)
-		if not ( not game.SinglePlayer() and player.GetCount() < game.MaxPlayers() and GMBots.GamemodeSupported ) then
-			if not GMBots.GamemodeSupported then
-				GMBots:Msg("Can't create bot because GMBots isn't loaded! (either GMBots hasn't had time to load yet or this gamemode isn't supported)")
-			else
-				GMBots:Msg("Can't create bot!")
+function GMBots:AddBot(name)
+	if not ( not game.SinglePlayer() and player.GetCount() < game.MaxPlayers() and GMBots.GamemodeSupported ) then
+		if not GMBots.GamemodeSupported then
+			GMBots:Msg("Can't create bot because GMBots isn't loaded! (either GMBots hasn't had time to load yet or this gamemode isn't supported)")
+		else
+			GMBots:Msg("Can't create bot!")
+		end
+		return
+	end
+
+	local navareas = navmesh.GetAllNavAreas()
+	if (navareas and #navareas < 0) or not navareas then
+		GMBots:Msg("There isn't a navmesh!")
+		if GetConVar("gmbots_gen_navmesh"):GetBool() then
+			return GMBots:GenerateNavMesh()
+		end
+	end
+
+	local botName = tostring( name or self:GetDefaultName() or "???" )
+
+	GMBots.LastBotUsername = botName
+
+	local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
+	if bot and bot:IsValid() then
+		bot.GMBot = true
+		bot.IsGMBot = function() return true end
+		bot.BotName = function() return botName end
+
+		bot.__GMBots = {}
+
+		hook.Run("GMBotsConnected",bot)
+		hook.Run("GMBotAdded",bot)
+		hook.Run("GMBotsAdded",bot)
+		hook.Run("GMBotsBotAdded",bot)
+		self:Msg("Bot added")
+
+		GMBots.BotCount = GMBots.BotCount+1
+	end
+	return bot
+end
+
+function GMBots:LoadModules()
+	self:Msg("Loading modules...")
+	local f_path = "gmbots/modules"
+
+	for i = 1,2 do
+		local folder_path = f_path
+		if i == 1 then
+			folder_path = f_path.."/default"
+		end
+		local files = file.Find(folder_path.."/*.lua","LUA")
+		for a,b in pairs(files) do
+			if not (b and b ~= "example.lua") then continue end
+
+			local fullFile = folder_path.."/"..b
+			local fileSide = string.lower(string.Left(b , 3))
+
+			if (fileSide == "cl_" or fileSide == "sh_") then
+				if SERVER then AddCSLuaFile(fullFile) self:Msg("Sent module "..b.." to client.") end
+				if CLIENT then include(fullFile) end
+				if fileSide == "cl_" and SERVER then
+					continue
+				end
 			end
+
+			local success,err = pcall(function()
+				include(fullFile)
+			end)
+			if not success then
+				self:Err(err or success or "Couldn't determine reason...","Module Error")
+			end
+			if i > 1 then
+				self:Msg("Loaded module "..b..".")
+			else
+				self:Msg("Loaded default module "..b..".")
+			end
+		end
+	end
+end
+
+
+function GMBots:Load()
+	if self and SERVER then
+		GMBots.RanBefore = true
+		local gm_name = string.lower(GAMEMODE_NAME)
+		if not gm_name then
+			self:Msg("Unexpected error: Couldn't find gamemode name...")
+			RunConsoleCommand("gmbots_spawnmenu",0)
 			return
 		end
+		if file.Exists("gmbots/"..gm_name..".lua","LUA") then
+			include("gmbots/gmbots/sv_gmbots.lua")
+			self:Msg("Loading...")
 
-		local navareas = navmesh.GetAllNavAreas()
-		if (navareas and #navareas < 0) or not navareas then
-			GMBots:Msg("There isn't a navmesh!")
-			if GetConVar("gmbots_gen_navmesh"):GetBool() then
-				return GMBots:GenerateNavMesh()
-			end
-		end
+			self:LoadModules()
 
-		local botName = tostring( name or self:GetDefaultName() or "???" )
+			GMBots.GamemodeSupported = true
+			include("gmbots/"..gm_name..".lua")
 
-		GMBots.LastBotUsername = botName
+			CreateConVar("gmbots_loaded",1,bit.bor(FCVAR_REPLICATED,FCVAR_UNLOGGED,FCVAR_NEVER_AS_STRING,FCVAR_UNREGISTERED),"Internal convar used to track whether GMBots is loaded or not.")
 
-		local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
-		if bot and bot:IsValid() then
-			bot.GMBot = true
-			bot.IsGMBot = function() return true end
-			bot.BotName = function() return botName end
-
-			bot.__GMBots = {}
-
-			hook.Run("GMBotsConnected",bot)
-			hook.Run("GMBotAdded",bot)
-			hook.Run("GMBotsAdded",bot)
-			hook.Run("GMBotsBotAdded",bot)
-			self:Msg("Bot added")
-
-			GMBots.BotCount = GMBots.BotCount+1
-		end
-		return bot
-	end
-
-	function GMBots:LoadModules()
-		self:Msg("Loading modules...")
-		local f_path = "gmbots/modules"
-
-		for i = 1,2 do
-			local folder_path = f_path
-			if i == 1 then
-				folder_path = f_path.."/default"
-			end
-			local files = file.Find(folder_path.."/*.lua","LUA")
-			for a,b in pairs(files) do
-				if not (b and b ~= "example.lua") then continue end
-
-				local fullFile = folder_path.."/"..b
-				local fileSide = string.lower(string.Left(File , 3))
-
-    			if SERVER and (fileSide == "cl_" or fileSide == "sh_") then
-					AddCSLuaFile(fullFile)
-					self:Msg("Sent module "..b.." to client.")
-					if fileSide == "cl_" then
-						continue
-					end
-				end
-
-				local success,err = pcall(function()
-					include(fullFile)
-				end)
-				if not success then
-					self:Err(err or success or "Couldn't determine reason...","Module Error")
-				end
-				if i <= 1 then
-					self:Msg("Loaded module "..b..".")
-				else
-					self:Msg("Loaded default module "..b..".")
-				end
-			end
-		end
-	end
-
-	function GMBots:Load()
-		GMBots.RanBefore = true
-		if self and SERVER then
-			local gm_name = string.lower(GAMEMODE_NAME)
-			if not gm_name then
-				self:Msg("Unexpected error: Couldn't find gamemode name...")
-				RunConsoleCommand("gmbots_spawnmenu",0)
-				return
-			end
-			if file.Exists("gmbots/"..gm_name..".lua","LUA") then
-				include("gmbots/gmbots/sv_gmbots.lua")
-				self:Msg("Loading...")
-
-				self:LoadModules()
-
-				GMBots.GamemodeSupported = true
-				include("gmbots/"..gm_name..".lua")
-
-				return true
-			else
-				--[[
-				MsgC(Color(0,255,0),"-------------------------------------------------\n")
-				self:Msg("Couldn't find gmbots/"..gm_name..".lua, stopping...")
-				self:Msg("If you believe this is a error, try restarting your game/server, if that doesn't work, contact me!")
-				MsgC(Color(0,255,0),"-------------------------------------------------\n")
-				]]
-				self:MultiMsg({
-					"Couldn't find gmbots/"..gm_name..".lua, stopping...",
-					"If you believe this is an error, try restarting your game/server! If that doesn't work, contact the developer!"
-				},Color(255,255,0))
-				RunConsoleCommand("gmbots_spawnmenu",0)
-				return false
-			end
+			return true
+		else
+			--[[
+			MsgC(Color(0,255,0),"-------------------------------------------------\n")
+			self:Msg("Couldn't find gmbots/"..gm_name..".lua, stopping...")
+			self:Msg("If you believe this is a error, try restarting your game/server, if that doesn't work, contact me!")
+			MsgC(Color(0,255,0),"-------------------------------------------------\n")
+			]]
+			self:MultiMsg({
+				"Couldn't find gmbots/"..gm_name..".lua, stopping...",
+				"If you believe this is an error, try restarting your game/server! If that doesn't work, contact the developer!"
+			},Color(255,255,0))
+			RunConsoleCommand("gmbots_spawnmenu",0)
 			return false
+		end
+		return false
+	elseif self and CLIENT then
+		local convar = GetConVar("gmbots_loaded")
+		if not GMBots.RanBefore and convar and convar:GetBool() then
+			GMBots.RanBefore = true
+			self:Msg("Loading...")
+			return self:LoadModules()
 		end
 	end
 end
@@ -351,8 +353,17 @@ if CLIENT then
 end
 
 if SERVER then
+	GMBots.GamemodeSupported = false
+	GMBots.BotPrefix = "BOT "
+	GMBots.BotUsernames = {}
+	GMBots.LastBotUsername = ""
+	GMBots.BotCount = 0
+	GMBots.Spots = {}
+
+	include("gmbots/gmbots/sv_convars.lua")
+
 	if game.IsDedicated() then RunConsoleCommand("gmbots_spawnmenu",0) end
-	timer.Create("GMBots_Loader_Startup_DoNotOverwrite",2,1,function()
+	timer.Create("__GMBots_Loader_Startup",2,1,function()
 		if SERVER and not GMBots.RanBefore then
 			if game.SinglePlayer() then
 				GMBots:Msg("Game is set to singleplayer! Please change to have a player count of 2 or more for GMBots to run.")
@@ -361,4 +372,6 @@ if SERVER then
 			GMBots:Load()
 		end
 	end)
+else
+	timer.Create("__GMBots_Loader_Startup",2,4,function() GMBots:Load() end)
 end

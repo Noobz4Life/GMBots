@@ -9,14 +9,6 @@ function PLAYER:IsTyping()
 	return self:RealIsTyping()
 end
 
-PLAYER.RealNick = PLAYER.RealNick or PLAYER.Nick
-function PLAYER:Nick()
-	//if self:IsGMBot() then return "BOT "..self:RealNick() end
-	return self:RealNick()
-end
-PLAYER.Name = PLAYER.Nick
-PLAYER.GetName = PLAYER.Nick
-
 if CLIENT then
 	function PLAYER:IsGMBot()
 		return self.GMBot or self:GetNWBool("IsGMBot") or (self == LocalPlayer() and self:GetInfoNum( "gmbots_become_bot", 0 ) > 0)
@@ -47,5 +39,5 @@ if CLIENT then
 end
 
 // manually load these files since the addon doesn't have clientside support
-include("gmbots/modules/default/voice.lua")
-include("gmbots/modules/default/names.lua")
+//include("gmbots/modules/default/voice.lua")
+//include("gmbots/modules/default/names.lua")
