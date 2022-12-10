@@ -118,48 +118,48 @@ function GMBots:GetDefaultName(nameList)
 	return defaultNames[math.random(1,#defaultNames)]
 end
 
-function GMBots:AddBot(name)
-	if not ( not game.SinglePlayer() and player.GetCount() < game.MaxPlayers() and GMBots.GamemodeSupported ) then
-		if not GMBots.GamemodeSupported then
-			GMBots:Msg("Can't create bot because GMBots isn't loaded! (either GMBots hasn't had time to load yet or this gamemode isn't supported)")
-		else
-			GMBots:Msg("Can't create bot!")
-		end
-		return
-	end
-
-	local navareas = navmesh.GetAllNavAreas()
-	if (navareas and #navareas < 0) or not navareas then
-		GMBots:Msg("There isn't a navmesh!")
-		if GetConVar("gmbots_gen_navmesh"):GetBool() then
-			return GMBots:GenerateNavMesh()
-		end
-	end
-
-	local botName = tostring( name or self:GetDefaultName() or "???" )
-
-	GMBots.LastBotUsername = botName
-
-	local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
-	if bot and bot:IsValid() then
-		bot.GMBot = true
-		bot.IsGMBot = function() return true end
-		bot.BotName = function() return botName end
-
-		bot.__GMBots = {}
-
-		hook.Run("GMBotsConnected",bot)
-		hook.Run("GMBotAdded",bot)
-		hook.Run("GMBotsAdded",bot)
-		hook.Run("GMBotsBotAdded",bot)
-		self:Msg("Bot added")
-
-		GMBots.BotCount = GMBots.BotCount+1
-	end
-	return bot
-end
-
 if SERVER then
+	function GMBots:AddBot(name)
+		if not ( not game.SinglePlayer() and player.GetCount() < game.MaxPlayers() and GMBots.GamemodeSupported ) then
+			if not GMBots.GamemodeSupported then
+				GMBots:Msg("Can't create bot because GMBots isn't loaded! (either GMBots hasn't had time to load yet or this gamemode isn't supported)")
+			else
+				GMBots:Msg("Can't create bot!")
+			end
+			return
+		end
+
+		local navareas = navmesh.GetAllNavAreas()
+		if (navareas and #navareas < 0) or not navareas then
+			GMBots:Msg("There isn't a navmesh!")
+			if GetConVar("gmbots_gen_navmesh"):GetBool() then
+				return GMBots:GenerateNavMesh()
+			end
+		end
+
+		local botName = tostring( name or self:GetDefaultName() or "???" )
+
+		GMBots.LastBotUsername = botName
+
+		local bot = player.CreateNextBot( tostring(self.BotPrefix)..botName ) or NULL
+		if bot and bot:IsValid() then
+			bot.GMBot = true
+			bot.IsGMBot = function() return true end
+			bot.BotName = function() return botName end
+
+			bot.__GMBots = {}
+
+			hook.Run("GMBotsConnected",bot)
+			hook.Run("GMBotAdded",bot)
+			hook.Run("GMBotsAdded",bot)
+			hook.Run("GMBotsBotAdded",bot)
+			self:Msg("Bot added")
+
+			GMBots.BotCount = GMBots.BotCount+1
+		end
+		return bot
+	end
+
 	function GMBots:LoadModules()
 		self:Msg("Loading modules...")
 		local f_path = "gmbots/modules"
@@ -173,8 +173,19 @@ if SERVER then
 			for a,b in pairs(files) do
 				if not (b and b ~= "example.lua") then continue end
 
+				local fullFile = folder_path.."/"..b
+				local fileSide = string.lower(string.Left(File , 3))
+
+    			if SERVER and (fileSide == "cl_" or fileSide == "sh_") then
+					AddCSLuaFile(fullFile)
+					self:Msg("Sent module "..b.." to client.")
+					if fileSide == "cl_" then
+						continue
+					end
+				end
+
 				local success,err = pcall(function()
-					include(folder_path.."/"..b)
+					include(fullFile)
 				end)
 				if not success then
 					self:Err(err or success or "Couldn't determine reason...","Module Error")

@@ -46,4 +46,6 @@ if CLIENT then
 	end)
 end
 
+// manually load these files since the addon doesn't have clientside support
 include("gmbots/modules/default/voice.lua")
+include("gmbots/modules/default/names.lua")
