@@ -69,6 +69,7 @@ function GMBots:AddSpotType(name,addCommands,noSpotFallback)
 	if not GMBots.Spots[name] then
 		GMBots.Spots[name] = {}
 
+		if GMBots["Get"..name.."Spot"] then return end
 		GMBots["Get"..name.."Spot"] = function(key)
 			--[[
 			if GMBots.Spots[name][key] then return GMBots.Spots[name][key] end
@@ -180,6 +181,38 @@ function GMBots:GetHidingSpot()
 end
 ]]
 
+local function isValidFleeSpot(self,target,spot)
+	local forwardAngle = (target - self:GetPos()):Angle():Forward()
+	local dot = forwardAngle:Dot((spot - self:GetPos()):GetNormalized())
+	if dot < 1/3 then
+		return true
+	end
+	return false
+end
+
+function PLAYER:GetFleeSpot(target)
+	if IsEntity(target) then target = target:GetPos() end
+	local spots = {}
+
+
+	local navAreas = navmesh.Find(self:GetPos(),2048,256,self:GetJumpPower())
+	for i = 1,#navAreas do
+		local navArea = navAreas[i]
+		local hidingSpots = navArea:GetHidingSpots()
+		for j = 1,#hidingSpots do
+			local spot = hidingSpots[j]
+			if not spot then continue end
+			if isValidFleeSpot(self,target,spot) then
+				spots[#spots + 1] = spot
+				GMBots.Debug.Sphere(spot,5,10,nil,true)
+			end
+		end
+	end
+
+	local spot = spots[math.random(1,#spots)]
+	return spot or getNavHidingSpot()
+end
+
 function CUSERCMD:AddButtons(...)
 	return self:SetButtons(bit.bor(self:GetButtons(),...))
 end
@@ -198,7 +231,9 @@ function PLAYER:ConCommand(str)
 	return self:RealConCommand(str)
 end
 
-PLAYER.BotName = PLAYER.Nick
+function PLAYER:BotName()
+	return self.__GMBotsBotName or self:Nick()
+end
 
 function PLAYER:ClearGMBotVars()
 	self.__GMBots = self.__GMBots or {}
@@ -281,6 +316,22 @@ function PLAYER:BotLookAt(pos)
 		self:SetEyeAngles(ang)
 		self.GMBotsCMD:SetViewAngles( ang )
 	end
+end
+
+function PLAYER:BotFlee(target)
+	if IsEntity(target) then target = target:GetPos() end
+	self.__GMBots = self.__GMBots or {}
+	if self.__GMBots.FleeSpot and (self.__GMBots.FleeExpireTime or 0) > CurTime() and isValidFleeSpot(self,target,self.__GMBots.FleeSpot) then
+		if self.__GMBots.FleeSpot:Distance(target) < 15 then
+			return true
+		else
+			self:Pathfind(self.__GMBots.FleeSpot,true,target)
+		end
+	else
+		self.__GMBots.FleeExpireTime = CurTime() + 15
+		self.__GMBots.FleeSpot = self:GetFleeSpot(target)
+	end
+	return false
 end
 
 function PLAYER:BotWander(fear)
