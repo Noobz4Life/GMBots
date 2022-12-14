@@ -32,35 +32,41 @@ end
 
 local updatingQuota = false
 
-function GMBots:UpdateQuota(newQuota,oldValue)
-    if updatingQuota then return end
+function GMBots:UpdateQuota(newQuota,oldValue,retriedAlready)
+    local co = coroutine.create(function()
+        if updatingQuota then return end
 
-    local botCount = countBots() or 0
-    local realQuota = math.min(game.MaxPlayers(),tonumber(newQuota) or GetConVar("gmbots_bot_quota"):GetInt() or 0)
+        local botCount = countBots() or 0
+        local realQuota = math.min(game.MaxPlayers(),tonumber(newQuota) or GetConVar("gmbots_bot_quota"):GetInt() or 0)
 
-    if realQuota <= 0 and not (oldValue and tonumber(oldValue) > 0) then return end
-    local quota = realQuota - countPlayers()
-    local bots = GMBots:GetBots()
+        if realQuota <= 0 and not (oldValue and tonumber(oldValue) > 0) then return end
+        local quota = realQuota - countPlayers()
+        local bots = GMBots:GetBots()
 
-    updatingQuota = true
+        updatingQuota = true
 
-    for i = 1,game.MaxPlayers() do
-        if botCount < quota then
-            local bot = GMBots:AddBot()
-            if bot and bot:IsValid() then
-                botCount = botCount + 1
-            end
-        elseif botCount > quota then
-            local botToKick = findDuplicateName(bots) or bots[math.random(1,#bots)]
-            if botToKick and botToKick:IsValid() then
-                botCount = botCount - 1
-                print("kicking "..tostring(botToKick))
-                botToKick:Kick()
-                table.RemoveByValue(bots, botToKick)
+        for i = 1,game.MaxPlayers() do
+            if botCount < quota then
+                local bot = GMBots:AddBot()
+                if bot and bot:IsValid() then
+                    botCount = botCount + 1
+                end
+            elseif botCount > quota then
+                local botToKick = findDuplicateName(bots) or bots[math.random(1,#bots)]
+                if botToKick and botToKick:IsValid() then
+                    botCount = botCount - 1
+                    print("kicking "..tostring(botToKick))
+                    botToKick:Kick("Bot quota updated")
+                    table.RemoveByValue(bots, botToKick)
+                end
             end
         end
-    end
-    updatingQuota = false
+
+
+        if not retriedAlready and countBots() ~= realQuota then GMBots:UpdateQuota(nil,nil,true) end
+        updatingQuota = false
+    end)
+    coroutine.resume( co )
 end
 
 cvars.AddChangeCallback( "gmbots_bot_quota", function(name,oldValue,newValue)

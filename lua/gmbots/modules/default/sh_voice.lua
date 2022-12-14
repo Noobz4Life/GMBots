@@ -29,7 +29,7 @@ local function urlencode(url)
 end
 
 local function updateVoice(self)
-    if self and self:IsValid() and IsValid(self.__GMBotsVoiceSound) then
+    if CLIENT and self and self:IsValid() and IsValid(self.__GMBotsVoiceSound) then
         if self:IsGMBot() then
             if self:IsVoiceAudible() then
                 self.__GMBotsVoiceSound:SetVolume(self:GetVoiceVolumeScale())
@@ -66,7 +66,7 @@ end
 
 local function GMBotsVoiceSoundPlayCallback(self,soundChannel)
     print(soundChannel)
-    if IsValid(soundChannel) then
+    if CLIENT and IsValid(soundChannel) then
         soundChannel:Play()
 
         if self and self:IsValid() then
@@ -75,8 +75,8 @@ local function GMBotsVoiceSoundPlayCallback(self,soundChannel)
                 self.__GMBotsVoiceSound:Stop()
             end
             self.__GMBotsVoiceSound = soundChannel
-            local voiceTimerIdentifier = "____GMBotsVoiceTimer_"..self:UserID()
-            timer.Create( voiceTimerIdentifier, 1/10, 0, function()
+            local voiceTimerIdentifier = "____GMBotsVoiceTimer_"..self:EntIndex()
+            timer.Create( voiceTimerIdentifier, 1/4, 0, function()
                 if self and self:IsValid() and self.__GMBotsVoiceSound then
                     updateVoice(self)
                 else
@@ -170,3 +170,5 @@ if CLIENT then
         end
     end )
 end
+
+if SERVER then updateVoice = nil end

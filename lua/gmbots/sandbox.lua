@@ -77,6 +77,7 @@ hook.Add("GMBotsStart","GMBots_RunStart",function(ply,cmd) -- Initialize the hoo
 	cmd:ClearButtons() -- Clear any buttons the bot is pressing (for nextbots, this is by default crouch for some reason)
 	cmd:ClearMovement() -- Clear any movement the bot is doing, this usually doesn't do anything but it's here just in case.
 
+
 	if ply:GetGMBotVar("activity") == 1 then
 		if not (ply:GetGMBotVar("Dupe")) then
 			ply:SetGMBotVar("Dupe",getDupe(ply))

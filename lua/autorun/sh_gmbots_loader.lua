@@ -33,12 +33,12 @@ function GMBots:Msg(msg,col)
 end
 
 function GMBots:Warn(msg)
-	prefix = prefix or "GMBots Error"
+	local prefix = prefix or "GMBots Error"
 	return MsgC( Color(255,255,0), "[GMBots Warning] "..tostring(msg).."\n")
 end
 
 function GMBots:Err(msg,prefix)
-	prefix = prefix or "GMBots Error"
+	local prefix = prefix or "GMBots Error"
 	ErrorNoHalt()
 	return MsgC( Color(255,0,0), "["..prefix.."] "..msg.."\n")
 end
@@ -106,6 +106,11 @@ function GMBots:GenerateNavMesh()
 	navmesh.BeginGeneration()
 end
 
+local PLAYER = FindMetaTable("Player")
+function PLAYER:IsGMBot()
+	return self.GMBot or self:GetNWBool("IsGMBot") or (self:GetInfoNum( "gmbots_become_bot", 0 ) > 0)
+end
+
 function GMBots:GetDefaultName(nameList)
 	local defaultNames = nameList or GMBots.BotUsernames or {"Bob","Billy","Xander","Isaiah","Alex","Alyx","Vorty","Eli","Carl"}
 
@@ -139,6 +144,7 @@ function GMBots:AddBot(name)
 		bot.GMBot = true
 		bot.IsGMBot = function() return true end
 		bot.BotName = function() return botName end
+		bot.__GMBotsBotName = botName
 
 		bot.__GMBots = {}
 
@@ -373,5 +379,8 @@ if SERVER then
 		end
 	end)
 else
-	timer.Create("__GMBots_Loader_Startup",2,4,function() GMBots:Load() end)
+	include("gmbots/gmbots/cl_fixes.lua")
+	timer.Create("__GMBots_Loader_Startup",2,4,function()
+		GMBots:Load()
+	end)
 end

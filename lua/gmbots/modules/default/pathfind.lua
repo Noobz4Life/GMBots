@@ -429,6 +429,7 @@ end
 local function gotoGoal(ply,goal)
 	local cmd = ply.GMBotsCMD || ply.cmd
 	if not ply or not cmd then return end
+	if ply:GetPos():Distance(goal) < 5 then return end
 
 	checkJump(ply)
 	checkDuck(ply)
