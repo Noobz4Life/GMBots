@@ -8,6 +8,7 @@
 GMBots allows you to add bots to Garry's Mod!
 
 ## Installation
-TODO: update later
+download the .zip and drag it into your garry's mod addons folder
+
 ## Documentation
-TODO: update later
+~~TODO: update later~~ not happening lol
